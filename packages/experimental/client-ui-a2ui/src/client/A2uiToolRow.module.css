@@ -1,0 +1,21 @@
+.root {
+  color: var(--dsw-alias-content-tertiary);
+}
+
+.summary {
+  margin-inline-start: 8px;
+  color: var(--dsw-alias-content-tertiary);
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.output {
+  margin: 8px 0 0 24px;
+  padding: 8px 10px;
+  overflow: auto;
+  color: var(--dsw-alias-content-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

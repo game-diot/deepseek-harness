@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "A2UI message tool",
+    "description": "Validate and persist bounded A2UI v1 messages for a compatible conversation renderer."
+  }
+}

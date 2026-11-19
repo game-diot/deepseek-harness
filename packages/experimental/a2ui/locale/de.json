@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "A2UI-Nachrichtenwerkzeug",
+    "description": "Validiert und speichert begrenzte A2UI-v1-Nachrichten für einen kompatiblen Dialog-Renderer."
+  }
+}

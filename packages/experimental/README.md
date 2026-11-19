@@ -36,6 +36,9 @@ Promotion requires a named product role, documented public behavior and limitati
 
 | Package | Role | ctx key |
 |---|---|---|
+| [`ag-ui-bridge`](ag-ui-bridge/README.md) | Optional authenticated AG-UI SSE adapter beside the native DSH protocol | — |
+| [`a2ui`](a2ui/README.md) | Validated, bounded A2UI v1 Basic Catalog messages persisted for a Client renderer | — |
+| [`client-ui-a2ui`](client-ui-a2ui/README.md) | Browser Tool View for A2UI result admission and visible fallback | — |
 | [`action-cards`](action-cards/README.md) | Optional action cards below answers: the proposal tool, card state, user actions and status notices | `ctx.actionCards` |
 | [`client-ui-action-cards`](client-ui-action-cards/README.md) | Card frame below completed answers, kind bodies and the proposal process row | — |
 | [`creation-recommendations`](creation-recommendations/README.md) | Explicit-need creation of persistent removable interface plugins | — |

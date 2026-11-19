@@ -422,6 +422,8 @@
     { "path": "./packages/credentials/credentials" },
     { "path": "./packages/credentials/credentials-local" },
     { "path": "./packages/credentials/authorization" },
+    { "path": "./packages/experimental/a2ui" },
+    { "path": "./packages/experimental/ag-ui-bridge" },
     { "path": "./packages/experimental/tool-session-query" },
     { "path": "./packages/storage/storage" },
     { "path": "./packages/storage/storage-json" },
