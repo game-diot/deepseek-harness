@@ -20,6 +20,7 @@ function rule(css: string, selector: string): string {
 
 describe('docked composer seat styles', () => {
   const seat = rule(conversationCss, ".root[data-phase='active'] .composerSeat,")
+  const view = rule(conversationCss, ".root[data-phase='active'] .viewArea,")
 
   it('keeps the seat at one stacking rank in every state', () => {
     expect(seat).toMatch(/position:\s*sticky;/)
@@ -40,6 +41,10 @@ describe('docked composer seat styles', () => {
 
   it('keeps scroll anchoring off composer content', () => {
     expect(seat).toMatch(/overflow-anchor:\s*none;/)
+  })
+
+  it('keeps the transcript tail scrollable above the live composer height', () => {
+    expect(view).toContain('padding-bottom: calc(var(--dsh-composer-height, 152px) + 24px)')
   })
 })
 

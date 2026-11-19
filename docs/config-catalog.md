@@ -9,6 +9,27 @@ Both language versions of this file are GENERATED from source (`scripts/gen-conf
 
 Each package entry labels its data with three identifiers: `inject` lists the service keys the plugin injects, so its `cordis.yml` tree must also load providers for those services; `refs` lists the referenced types that are not pasted here; `source` links the file that declares the config. Scope is the harness tier (`packages/`); the vendored cordis plugins a config tree may also load (the console logger, …) are pinned upstream source ([vendoring policy](../vendor/README.md)) and not catalogued here.
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-a2ui -->
+<a id="deepseek-aidsh-a2ui"></a>
+
+## `@deepseek-ai/dsh-a2ui`
+
+- `inject`: `tools`
+- `source`: [`packages/experimental/a2ui/src/index.ts:16`](../packages/experimental/a2ui/src/index.ts)
+
+```ts config-catalog
+/** Deployment-owned message and component limits. */
+export interface Config {
+  /** Maximum messages accepted by one call. */
+  maxMessages?: number
+  /** Maximum components accepted across one call. */
+  maxComponents?: number
+  /** Maximum UTF-8 bytes in the canonical envelope. */
+  maxBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-a2ui -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-acp -->
 <a id="deepseek-aidsh-acp"></a>
 
@@ -47,6 +68,33 @@ export interface AcpConfig {
 export type Config = z.infer<typeof Config>
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-action-cards -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-ag-ui-bridge -->
+<a id="deepseek-aidsh-ag-ui-bridge"></a>
+
+## `@deepseek-ai/dsh-ag-ui-bridge`
+
+- `inject`: `webServer` · `agents`
+- `source`: [`packages/experimental/ag-ui-bridge/src/index.ts:26`](../packages/experimental/ag-ui-bridge/src/index.ts)
+
+```ts config-catalog
+/** Deployment-owned endpoint and input bounds. */
+export interface Config {
+  /** Exact authenticated HTTP path owned by the Bridge. */
+  path?: string
+  /** Maximum request body bytes read before JSON validation. */
+  maxBodyBytes?: number
+  /** DSH model-provider id used by newly bound Threads. */
+  provider: string
+  /** DSH model id used by newly bound Threads. */
+  model: string
+  /** Maximum process-local authenticated Thread bindings. */
+  maxThreads?: number
+  /** Maximum recorded Thread history bytes carried by one Run request. */
+  maxHistoryBytes?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-ag-ui-bridge -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-agent-default-model -->
 <a id="deepseek-aidsh-agent-default-model"></a>
@@ -5204,6 +5252,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-client-resources` | — | [`packages/client/resources/src/index.ts`](../packages/client/resources/src/index.ts) |
 | `@deepseek-ai/dsh-client-script-realm` | — | [`packages/client/script-realm/src/index.ts`](../packages/client/script-realm/src/index.ts) |
 | `@deepseek-ai/dsh-client-script-realm-iframe` | — | [`packages/client/script-realm-iframe/src/index.ts`](../packages/client/script-realm-iframe/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-a2ui` | — | [`packages/experimental/client-ui-a2ui/src/index.ts`](../packages/experimental/client-ui-a2ui/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-action-cards` | — | [`packages/experimental/client-ui-action-cards/src/index.ts`](../packages/experimental/client-ui-action-cards/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-agent-preset` | — | [`packages/client/ui-agent-preset/src/index.ts`](../packages/client/ui-agent-preset/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-agent-team` | — | [`packages/client/ui-agent-team/src/index.ts`](../packages/client/ui-agent-team/src/index.ts) |

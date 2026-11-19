@@ -437,8 +437,10 @@
       "@deepseek-ai/dsh-message-feedback/types": ["./packages/feedback/message-feedback/src/types.ts"],
       "@deepseek-ai/dsh-webhook/types": ["./packages/experimental/webhook/src/types.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
+      "@deepseek-ai/dsh-a2ui": ["./packages/experimental/a2ui/src"],
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],
+      "@deepseek-ai/dsh-ag-ui-bridge": ["./packages/experimental/ag-ui-bridge/src"],
       "@deepseek-ai/dsh-agent": ["./packages/core/agent/src"],
       "@deepseek-ai/dsh-agent-default-model": ["./packages/core/agent-default-model/src"],
       "@deepseek-ai/dsh-agent-instructions": ["./packages/context/agent-instructions/src"],
@@ -458,6 +460,7 @@
       "@deepseek-ai/dsh-bash-sandbox": ["./packages/shell/bash-sandbox/src"],
       "@deepseek-ai/dsh-brand": ["./packages/util/brand/src"],
       "@deepseek-ai/dsh-chunked-list": ["./packages/util/chunked-list/src"],
+      "@deepseek-ai/dsh-client-ui-a2ui": ["./packages/experimental/client-ui-a2ui/src"],
       "@deepseek-ai/dsh-cmdline": ["./packages/boot/cmdline/src"],
       "@deepseek-ai/dsh-command-compact": ["./packages/compaction/command-compact/src"],
       "@deepseek-ai/dsh-command-feedback": ["./packages/feedback/command-feedback/src"],

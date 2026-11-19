@@ -1,0 +1,3 @@
+{
+  "meta": { "title": "AG-UI bridge", "description": "Expose authenticated AG-UI 1.0 runs beside the native DSH protocol." }
+}
