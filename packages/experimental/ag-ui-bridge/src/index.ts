@@ -13,9 +13,10 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { PROTOCOL_VERSION } from '@ag-ui/core'
+import { EventType, PROTOCOL_VERSION } from '@ag-ui/core'
 import { AgUiRunEmitter } from './run-emitter.ts'
 import { AgUiRunHistory, historyBytes, projectMessages, sameHistory } from './run-history.ts'
+import { demoPage } from './demo.ts'
 
 /** Cordis plugin name. */
 export const name = 'ag-ui-bridge'
@@ -36,6 +37,8 @@ export interface Config {
   maxThreads?: number
   /** Maximum recorded Thread history bytes carried by one Run request. */
   maxHistoryBytes?: number
+  /** Serve a self-contained `/demo` page beside the run endpoint. */
+  demo?: boolean
 }
 
 /** Loader schema for the optional bridge. */
@@ -46,6 +49,7 @@ export const Config: z<Config> = z.object({
   model: z.string().required(),
   maxThreads: z.number().step(1).min(1).default(32),
   maxHistoryBytes: z.number().step(1).min(1).default(1_048_576),
+  demo: z.boolean().default(false),
 })
 
 async function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
@@ -95,6 +99,14 @@ function threadKey(peer: PeerScope, threadId: string): string {
 
 function toolResultText(content: readonly { readonly type: string; readonly text?: string }[]): string {
   return content.flatMap(block => block.type === 'text' && block.text !== undefined ? [block.text] : []).join('\n')
+}
+
+/** A2UI messages carried by one durable Tool result, when it speaks the A2UI protocol. */
+function a2uiPayload(meta: unknown): { readonly protocol: 'a2ui/v1'; readonly messages: readonly unknown[] } | null {
+  if (typeof meta !== 'object' || meta === null) return null
+  const candidate = meta as { protocol?: unknown; messages?: unknown }
+  if (candidate.protocol !== 'a2ui/v1' || !Array.isArray(candidate.messages)) return null
+  return { protocol: 'a2ui/v1', messages: candidate.messages }
 }
 
 function attributedPrompt(peer: PeerScope, threadId: string, runId: string, text: string): string {
@@ -156,6 +168,19 @@ export function apply(ctx: Context, config: Config): void {
       await Promise.all([...threads.values()].map(handle => handle.dispose()))
       histories.clear()
       stale.clear()
+    }
+    if (config.demo === true) {
+      yield ctx.webServer.register({
+        kind: 'exact', path: `${path}/demo`, auth: 'required',
+        handler: (req, res) => {
+          if (req.method !== 'GET') {
+            res.writeHead(405, { allow: 'GET', 'cache-control': 'no-store' }).end()
+            return
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+            .end(demoPage(path))
+        },
+      })
     }
     yield ctx.webServer.register({
       kind: 'exact', path, auth: 'required',
@@ -377,6 +402,8 @@ export function apply(ctx: Context, config: Config): void {
               if (session !== agent.session) return
               if (event.type === 'tool/result' && started) {
                 bridge.toolResult(String(event.data.message.source.callId), toolResultText(event.data.message.content))
+                const a2ui = a2uiPayload(event.data.meta)
+                if (a2ui !== null) emit({ type: EventType.CUSTOM, name: 'a2ui', value: a2ui })
                 return
               }
               if (event.type !== 'turn/end' || !started) return

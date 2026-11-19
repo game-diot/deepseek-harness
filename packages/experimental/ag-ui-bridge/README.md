@@ -26,10 +26,12 @@ This experimental Host plugin exposes an authenticated AG-UI SSE run endpoint wh
 
 Mount it only in an experimental profile, set the required `provider` and `model`, and configure `path`, `maxBodyBytes`, `maxThreads`, and `maxHistoryBytes` as needed. The named route requires an authenticated Peer, accepts `POST`, validates `RunAgentInput`, rejects concurrent runs on one thread, and disposes every bridge-owned Agent when the plugin unloads.
 
+Set `demo: true` to serve a self-contained page at `<path>/demo` that posts to this endpoint, prints the RAW event stream, and renders the restricted A2UI Basic Catalog subset with a plain DOM renderer. Use it to inspect the bridge from a browser; it is not the product renderer and ships disabled.
+
 <a id="behavior"></a>
 ## Behavior
 
-Each Run carries the Thread history the bridge already produced followed by one new user text message, with empty tools, context, state, and forwarded props; unsupported fields fail with HTTP 400. The bridge records every message it publishes and compares the replayed prefix on `id`, `role`, text, `toolCallId`, and Tool call id/name/arguments, so a divergence fails with HTTP 409 instead of silently branching the Thread. A Run that published no message events leaves its user message recorded, and the client may resend that identical message; the bridge drops the recorded copy and runs it again. It maps `RUN_STARTED`, streamed text, streamed Tool call arguments, durable `TOOL_CALL_RESULT` for Tool calls the client already saw open, `RUN_FINISHED`, and `RUN_ERROR`. Public errors use stable messages and codes while Host logs retain internal diagnostics. A disconnected HTTP client cancels the active DSH Turn but receives no synthesized terminal event.
+Each Run carries the Thread history the bridge already produced followed by one new user text message, with empty tools, context, state, and forwarded props; unsupported fields fail with HTTP 400. The bridge records every message it publishes and compares the replayed prefix on `id`, `role`, text, `toolCallId`, and Tool call id/name/arguments, so a divergence fails with HTTP 409 instead of silently branching the Thread. A Run that published no message events leaves its user message recorded, and the client may resend that identical message; the bridge drops the recorded copy and runs it again. It maps `RUN_STARTED`, streamed text, streamed Tool call arguments, durable `TOOL_CALL_RESULT` for Tool calls the client already saw open, a `CUSTOM` event named `a2ui` when a Tool result carries `protocol: a2ui/v1` metadata, `RUN_FINISHED`, and `RUN_ERROR`. Public errors use stable messages and codes while Host logs retain internal diagnostics. A disconnected HTTP client cancels the active DSH Turn but receives no synthesized terminal event.
 
 <a id="model-experience"></a>
 ## Model Experience
@@ -56,6 +58,7 @@ The bridge does not alter the reusable prompt prefix.
 - **Interrupted streams end the Thread** — once a Run has written events and the response then aborts, the client cannot reproduce the delivered prefix, so the bridge retires that binding, frees its `maxThreads` slot, and later Runs fail with `DSH_AG_UI_HISTORY_UNUSABLE`. Backpressure counts as a write failure for the same reason: the bridge cancels the Run and retires the Thread rather than leave a partial history it cannot verify.
 - **Process-local Thread bindings** — a Principal-scoped binding does not survive process restart, and no persisted external Thread identifier maps to a DSH Session yet.
 - **Deferred protocol surface** — AG-UI state snapshots and deltas, interrupts, multimodal input, client-side Tools, and protobuf transport remain unsupported.
+- **A2UI travels as Tool data** — the canonical surface messages arrive after the Tool result as a `CUSTOM` event named `a2ui`; no AG-UI state or activity channel carries them, and the demo page renders only the Basic Catalog subset this Host admits.
 
 <a id="dev-note"></a>
 ### Dev Note

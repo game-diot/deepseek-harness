@@ -34,8 +34,9 @@ function setup(config: Partial<Config> = {}) {
   const ctx = new Context()
   const release = vi.fn()
   let route: WebRoute | undefined
+  const routes: WebRoute[] = []
   const webServer = Object.assign(Object.create(WebServer.prototype), {
-    register: vi.fn((value: WebRoute) => { route = value; return release }),
+    register: vi.fn((value: WebRoute) => { route = value; routes.push(value); return release }),
   }) as WebServer
   const create = vi.fn<() => Promise<AgentHandle>>()
   const agents = Object.assign(Object.create(AgentRegistry.prototype), { create }) as AgentRegistry
@@ -44,7 +45,7 @@ function setup(config: Partial<Config> = {}) {
   const fiber = ctx.plugin({ apply, inject: ['webServer', 'agents'] }, {
     provider: 'mock', model: 'mock', ...config,
   })
-  return { ctx, create, fiber, release, route: () => route }
+  return { ctx, create, fiber, release, routes, route: () => route }
 }
 
 function handle(ctx: Context, run: 'success' | 'error' | 'idle' | 'disposed' | 'pending' | 'tool' | 'aborted' | 'turn-error' | 'preclaim-error' | 'preclaim-disposed' | 'throw' | 'cancel-throw' = 'success') {
@@ -557,6 +558,55 @@ describe('AG-UI bridge route', () => {
     expect(response.body).toContain('RUN_ERROR')
     expect(response.body).not.toContain('internal followup detail')
     await fixture.fiber.dispose()
+  })
+
+  it('publishes canonical A2UI messages as a CUSTOM event', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: [{ createSurface: { surfaceId: 's1', components: [] } }] },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).toContain('CUSTOM')
+    expect(response.body).toContain('"name":"a2ui"')
+    expect(response.body).toContain('createSurface')
+    await fixture.fiber.dispose()
+  })
+
+  it('serves the demo page only when enabled', async () => {
+    const disabled = setup()
+    await disabled.fiber.await()
+    expect(disabled.routes.some(route => route.path === '/ag-ui/run/demo')).toBe(false)
+    await disabled.fiber.dispose()
+
+    const enabled = setup({ demo: true })
+    await enabled.fiber.await()
+    const demo = enabled.routes.find(route => route.path === '/ag-ui/run/demo')
+    expect(demo).toMatchObject({ kind: 'exact', auth: 'required' })
+    const page = new ResponseFixture()
+    await demo?.handler(request('GET') as never, page as never, peer() as never)
+    expect(page.status).toBe(200)
+    expect(page.headers['content-type']).toContain('text/html')
+    expect(page.body).toContain('/ag-ui/run')
+
+    const rejected = new ResponseFixture()
+    await demo?.handler(request('POST') as never, rejected as never, peer() as never)
+    expect(rejected.status).toBe(405)
+    await enabled.fiber.dispose()
   })
 
   it('returns a creation failure and clears the reservation for retry', async () => {

@@ -75,7 +75,7 @@ export type Config = z.infer<typeof Config>
 ## `@deepseek-ai/dsh-ag-ui-bridge`
 
 - `inject`: `webServer` · `agents`
-- `source`: [`packages/experimental/ag-ui-bridge/src/index.ts:26`](../packages/experimental/ag-ui-bridge/src/index.ts)
+- `source`: [`packages/experimental/ag-ui-bridge/src/index.ts:27`](../packages/experimental/ag-ui-bridge/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned endpoint and input bounds. */
@@ -92,6 +92,8 @@ export interface Config {
   maxThreads?: number
   /** Maximum recorded Thread history bytes carried by one Run request. */
   maxHistoryBytes?: number
+  /** Serve a self-contained `/demo` page beside the run endpoint. */
+  demo?: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-ag-ui-bridge -->
