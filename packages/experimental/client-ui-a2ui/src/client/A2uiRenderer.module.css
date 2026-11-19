@@ -1,0 +1,42 @@
+.root {
+  --a2ui-color-background: transparent;
+  --a2ui-color-on-background: var(--dsw-alias-content-primary);
+  --a2ui-color-surface: var(--dsw-alias-surface-secondary);
+  --a2ui-color-on-surface: var(--dsw-alias-content-primary);
+  --a2ui-color-primary: var(--dsw-alias-accent-primary);
+  --a2ui-color-on-primary: var(--dsw-alias-content-on-primary);
+  --a2ui-color-secondary: var(--dsw-alias-surface-tertiary);
+  --a2ui-color-on-secondary: var(--dsw-alias-content-primary);
+  --a2ui-color-border: var(--dsw-alias-border-primary);
+  --a2ui-border: 1px solid var(--a2ui-color-border);
+  --a2ui-font-family-title: inherit;
+  --a2ui-font-family-monospace: monospace;
+  --a2ui-grid-base: 8px;
+  --a2ui-spacing-xs: 2px;
+  --a2ui-spacing-s: 4px;
+  --a2ui-spacing-m: 8px;
+  --a2ui-spacing-l: 16px;
+  --a2ui-spacing-xl: 32px;
+  --a2ui-font-size: 13px;
+  --a2ui-font-size-xs: 11px;
+  --a2ui-font-size-s: 12px;
+  --a2ui-font-size-m: 13px;
+  --a2ui-font-size-l: 16px;
+  --a2ui-font-size-xl: 19px;
+  --a2ui-font-size-2xl: 23px;
+  --a2ui-line-height-headings: 1.2;
+  --a2ui-line-height-body: 1.5;
+
+  margin: 8px 0 0 24px;
+}
+
+.notice,
+.error {
+  margin-top: 8px;
+  color: var(--dsw-alias-content-tertiary);
+  font-size: 13px;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}

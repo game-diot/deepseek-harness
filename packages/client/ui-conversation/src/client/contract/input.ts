@@ -303,6 +303,12 @@ export interface InputActions {
   pruneAttachments(ids: readonly DraftAttachmentId[]): void
   /** Enter submission (adjudication / claim transaction / default sink inside). */
   submit(): void
+  /**
+   * Atomically replace an idle empty draft and submit it.
+   * @param text - nonblank plain text to submit without attachments.
+   * @returns whether the current input state admitted the transaction.
+   */
+  submitText?(text: string): boolean
 }
 
 /** One surfaced notice (command results, adjudication failures). seq keys re-render of repeats. */

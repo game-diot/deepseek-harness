@@ -19,6 +19,7 @@
 
 | 工具包 | 模型可见名称 | 依赖 | 写入／影响 | 随产品发布的别名 | 部署说明 |
 | --- | --- | --- | --- | --- | --- |
+| `@deepseek-ai/dsh-a2ui` | `a2ui_render` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-plugin-manager` | `plugin_manager` | `ctx.tools`, `ctx.pluginManager`, `ctx.sandboxPolicy` | `tool/call`, `tool/result`, `user/message` | - | - |
 | `@deepseek-ai/dsh-plugin-market` | `plugin_market` | `ctx.tools`, `ctx.pluginMarket` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-mcp-resources` | `list_mcp_resource_templates`, `list_mcp_resources`, `read_mcp_resource` | `ctx.tools`, `ctx.mcpResources` | `tool/call`, `tool/result` | - | - |
@@ -55,6 +56,35 @@
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-workspace-dependencies` | `load_workspace_dependencies` | `ctx.tools` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
+
+<a id="deepseek-aidsh-a2ui"></a>
+
+## `@deepseek-ai/dsh-a2ui`
+
+### `a2ui_render`
+
+校验并持久化声明式 A2UI v1 Basic Catalog 消息，供兼容的对话渲染器使用。当用户消息以 `[A2UI action]` 开头时，读取其中的 JSON；如果该操作改变了可见状态，则再次调用此工具生成完整的后继 Surface，不要改写历史 Surface。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "messages": {
+      "type": "array",
+      "description": "A2UI v1 messages using only the supported Basic Catalog components.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "messages"
+  ]
+}
+```
+
+来源： [`packages/experimental/a2ui/src/index.ts`](../packages/experimental/a2ui/src/index.ts)
 
 <a id="deepseek-aidsh-plugin-manager"></a>
 

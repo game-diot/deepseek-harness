@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "A2UI 界面显示",
+    "description": "在 Web 对话中显示 A2UI 工具结果状态，并保留不受支持的结果。"
+  }
+}

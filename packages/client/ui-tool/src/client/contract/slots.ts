@@ -17,6 +17,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /**
      * Key by wire name, including custom tools; a typo never renders. Unclaimed keys use the generic row.
      * Use `key: '<tool name>'` to replace the view; phase data has `name` and lazy, possibly partial `args`.
+     * Key by wire name, including custom tools; `key: '<tool name>'` typos never render.
+     * Occupied keys replace the view, unclaimed keys use the generic row, and preparing owner `args` may be incomplete.
      */
     'tool.call.toolview': {
       kind: 'keyed'

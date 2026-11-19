@@ -767,6 +767,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-deliverables DeliverablesTail id \'@deepseek-ai/dsh-client-ui-deliverables\'',
       'client-ui-plan PlanCards',
       'client-ui-schedule ScheduleTurnCard id \'schedule-created\'',
+      'client-ui-a2ui A2uiTurnTail id \'@deepseek-ai/dsh-client-ui-a2ui\'',
       'client-ui-action-cards ActionCardTail id \'@deepseek-ai/dsh-client-ui-action-cards\'',
     ],
     replaceRisk: 'none',
@@ -6287,6 +6288,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     scope: 'session',
     summary: 'Key by wire name, including custom tools; a typo never renders.',
     doc: 'Key by wire name, including custom tools; a typo never renders. Unclaimed keys use the generic row.\nUse `key: \'<tool name>\'` to replace the view; phase data has `name` and lazy, possibly partial `args`.',
+    summary: 'Key by wire name, including custom tools; `key: \'<tool name>\'` typos never render.',
+    doc: 'Key by wire name, including custom tools; `key: \'<tool name>\'` typos never render.\nOccupied keys replace the view, unclaimed keys use the generic row, and preparing owner `args` may be incomplete.',
     registerOptions: [
       {
         name: 'key',
@@ -6330,6 +6333,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'useTrajectory: UseTrajectory',
     ],
     keyDomain: 'open: any string the owner dispatches (no compile-time key set), already taken: apply_patch, ask_user_question, bash, cordis_define, cordis_inspect, cordis_inspect_list, cordis_inspect_query, cordis_inspect_self, cordis_run, cordis_stop, cordis_undefine, create_goal, edit, get_goal, glob, grep, interrupt_agent, job_kill, job_list, job_output, list_agents, list_subagent_models, lsp, office_convert, office_recalculate, office_render, present, ralph, read, read_image, schedule_create, schedule_delete, schedule_edit, schedule_list, schedule_update, schedule_view, send_message, session_event_read, session_event_search, session_event_trace, session_search, session_trace, skill, spawn_teammate, subagent, subagent_fork, team_task_create, team_task_get, team_task_list, team_task_update, terminal_close, terminal_list, terminal_open, terminal_read, terminal_signal, timeline_tasks, todo_write, update_goal, wait_agent, web_fetch, web_search, workflow, write',
+    keyDomain: 'open: any string the owner dispatches (no compile-time key set), already taken: a2ui_render, apply_patch, ask_user_question, bash, cordis_define, cordis_inspect_list, cordis_inspect_query, cordis_inspect_self, cordis_run, cordis_stop, cordis_undefine, create_goal, edit, get_goal, glob, grep, interrupt_agent, job_kill, job_list, job_output, list_agents, list_subagent_models, lsp, office_convert, office_recalculate, office_render, present, propose_action, ralph, read, read_image, schedule_create, schedule_delete, schedule_edit, schedule_list, schedule_update, schedule_view, send_message, session_event_read, session_event_search, session_event_trace, session_search, session_trace, skill, spawn_teammate, subagent, subagent_fork, team_task_create, team_task_get, team_task_list, team_task_update, terminal_close, terminal_list, terminal_open, terminal_read, terminal_signal, timeline_tasks, todo_write, update_goal, wait_agent, web_fetch, web_search, workflow, write',
     hookContext: '',
     slotInject: '',
     declaredBy: 'an entry in \'conversation.chat.node\' (client-ui-tool), so it exists while that entry is mounted',
@@ -6392,6 +6396,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-tool TodoRow key \'todo_write\'',
       'client-ui-tool WebRow key \'web_search\'',
       'client-ui-tool WebRow key \'web_fetch\'',
+      'client-ui-a2ui A2uiToolRow key \'a2ui_render\'',
+      'client-ui-action-cards ProposeRow key \'propose_action\'',
       'timeline TaskCard key \'timeline_tasks\'',
       'client-ui-cordis CordisDefineRow key \'cordis_define\'',
       'client-ui-cordis CordisRunRow key \'cordis_run\'',

@@ -11,6 +11,14 @@
 /tool-schema-catalog/tool-package-map:
   en: ddb1e263463e9ecd
   zh: 1eb008f18b500dc3
+  en: 9be0a559ba00a6b4
+  zh: c145d9d71c3abf98
+/tool-schema-catalog/deepseek-ai-dsh-a2ui:
+  en: 341303d7f02b9a7d
+  zh: 341303d7f02b9a7d
+/tool-schema-catalog/deepseek-ai-dsh-a2ui/a2ui-render:
+  en: 05131072b2cd99dc
+  zh: be8c019612c64bb8
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762

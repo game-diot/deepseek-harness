@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Affichage de l'interface A2UI",
+    "description": "Affiche l'état des résultats d'outil A2UI et conserve les résultats non pris en charge dans la conversation Web."
+  }
+}

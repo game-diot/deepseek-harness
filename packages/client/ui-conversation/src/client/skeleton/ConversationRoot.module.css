@@ -509,6 +509,9 @@
 .embeddedBody[data-content-phase='active'] .viewArea {
   flex: 1 0 auto;
   min-height: auto;
+  /* The composer is sticky inside the same scroll body. Reserve its measured
+     height after the View so the final message or Tool card can scroll above it. */
+  padding-bottom: calc(var(--dsh-composer-height, 152px) + 24px);
 }
 
 .root[data-phase='active'] .composerSeat,
