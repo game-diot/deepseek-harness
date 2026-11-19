@@ -37,6 +37,7 @@ export function demoPage(runPath: string): string {
   <form id="composer">
     <input id="prompt" placeholder="Ask for a card, e.g. render a card titled Hello" autocomplete="off">
     <button type="submit">Send</button>
+    <button type="button" id="new-thread">New thread</button>
   </form>
 </section>
 <section>
@@ -47,10 +48,23 @@ export function demoPage(runPath: string): string {
 </section>
 <script>
 const RUN_PATH = ${JSON.stringify(runPath)};
-const threadId = 'demo-' + Math.random().toString(36).slice(2);
-const messages = [];
+let threadId = newThreadId();
+let messages = [];
 const surfaces = new Map();
 const components = new Map();
+
+function newThreadId() {
+  return 'demo-' + Math.random().toString(36).slice(2);
+}
+
+function resetThread() {
+  threadId = newThreadId();
+  messages = [];
+  surfaces.clear();
+  components.clear();
+  document.getElementById('messages').textContent = '';
+  renderSurfaces();
+}
 const log = (line) => {
   const el = document.getElementById('log');
   el.textContent = line + '\\n' + el.textContent;
@@ -197,7 +211,7 @@ function handleEvent(event) {
   }
 }
 
-async function send(text) {
+async function send(text, retried = false) {
   if (!text.trim()) return;
   messages.push({ id: 'user-' + Math.random().toString(36).slice(2), role: 'user', content: text });
   bubble('user', text);
@@ -216,7 +230,13 @@ async function send(text) {
     }),
   });
   if (!response.ok || !response.body) {
-    bubble('tool', 'HTTP ' + response.status + ' ' + (await response.text()).slice(0, 300));
+    const detail = (await response.text()).slice(0, 300);
+    // A retired Thread cannot be resumed; start a clean one and replay this message once.
+    if (!retried && detail.includes('DSH_AG_UI_HISTORY_UNUSABLE')) {
+      resetThread();
+      return send(text, true);
+    }
+    bubble('tool', 'HTTP ' + response.status + ' ' + detail);
     return;
   }
   const reader = response.body.getReader();
@@ -246,6 +266,7 @@ document.getElementById('composer').addEventListener('submit', (event) => {
   input.value = '';
   send(text).catch(error => bubble('tool', String(error)));
 });
+document.getElementById('new-thread').addEventListener('click', resetThread);
 </script>
 </body>
 </html>`
