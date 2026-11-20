@@ -447,6 +447,60 @@ describe('a2ui_render', () => {
     expect(rejected.isError).toBe(true)
   })
 
+  it('accepts the remaining Basic Catalog components', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'kitchenSink',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['list', 'tabs', 'modal', 'when', 'clip', 'track'] },
+          { id: 'list', component: 'List', direction: 'horizontal', children: ['item1', 'item2'] },
+          { id: 'item1', component: 'Text', text: 'one' },
+          { id: 'item2', component: 'Text', text: 'two' },
+          {
+            id: 'tabs', component: 'Tabs',
+            tabs: [{ title: '第一页', child: 'tabOne' }, { title: '第二页', child: 'tabTwo' }],
+          },
+          { id: 'tabOne', component: 'Text', text: '第一个标签页' },
+          { id: 'tabTwo', component: 'Text', text: '第二个标签页' },
+          { id: 'modal', component: 'Modal', trigger: 'openBtn', content: 'modalText' },
+          { id: 'openBtn', component: 'Text', text: '打开弹窗' },
+          { id: 'modalText', component: 'Text', text: '弹窗内容' },
+          { id: 'when', component: 'DateTimeInput', label: '时间', value: '', enableDate: true, enableTime: true },
+          { id: 'clip', component: 'Video', url: 'https://example.com/v.mp4', posterUrl: 'https://example.com/p.png' },
+          { id: 'track', component: 'AudioPlayer', url: 'https://example.com/a.mp3', description: '示例音频' },
+        ],
+      },
+    }])
+
+    expect(result).toMatchObject({ isError: false, value: { protocol: 'a2ui/v1' } })
+  })
+
+  it('rejects incomplete tabs, modals, and date-time inputs', async () => {
+    const ctx = await setup()
+    const batches = [
+      [{ id: 'root', component: 'Tabs', tabs: [] }],
+      [{ id: 'root', component: 'Modal', trigger: 'a' }],
+      [{ id: 'root', component: 'DateTimeInput', label: 'x' }],
+      [{ id: 'root', component: 'Video' }],
+      [{ id: 'root', component: 'AudioPlayer', url: 'x', autoplay: true }],
+    ]
+    for (const components of batches) {
+      const result = await call(ctx, [{
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'badKitchenSink',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components,
+        },
+      }])
+      expect(result.isError).toBe(true)
+    }
+  })
+
   it('rejects a non-object createSurface dataModel', async () => {
     const ctx = await setup()
     const invalid = structuredClone(createSurface)

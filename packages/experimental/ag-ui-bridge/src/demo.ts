@@ -45,6 +45,16 @@ export function demoPage(runPath: string): string {
   .slider { display: flex; gap: 8px; align-items: center; }
   .slider input { flex: 1; }
   .slider-value { font: 12px/1.4 ui-monospace, monospace; opacity: .8; min-width: 3ch; }
+  .list { display: flex; gap: 10px; }
+  .list.vertical { flex-direction: column; }
+  .list.horizontal { flex-direction: row; flex-wrap: wrap; }
+  .tabs { display: flex; flex-direction: column; gap: 8px; }
+  .tabbar { display: flex; gap: 4px; border-bottom: 1px solid rgba(127,127,127,.35); }
+  .tab { padding: 6px 10px; border: 0; background: transparent; color: inherit; cursor: pointer; opacity: .65; }
+  .tab.active { opacity: 1; box-shadow: inset 0 -2px 0 currentColor; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal-panel { background: Canvas; color: CanvasText; border-radius: 12px; padding: 18px; min-width: 280px; max-width: min(80vw, 520px); max-height: 80vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+  .media { max-width: 100%; border-radius: 8px; }
   .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5); cursor: pointer; }
   .fallback { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
   #status { font: 12px/1.4 ui-monospace, monospace; opacity: .75; }
@@ -388,6 +398,105 @@ function renderComponent(surfaceId, id) {
     });
     row.append(input, out);
     wrap.append(label, row);
+    return wrap;
+  }
+  if (c.component === 'List') {
+    const el = document.createElement('div');
+    el.className = 'list ' + (c.direction === 'horizontal' ? 'horizontal' : 'vertical');
+    if (c.align) el.style.alignItems = ALIGN[c.align] || 'stretch';
+    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    return el;
+  }
+  if (c.component === 'Tabs') {
+    const wrap = document.createElement('div');
+    wrap.className = 'tabs';
+    const bar = document.createElement('div');
+    bar.className = 'tabbar';
+    const panel = document.createElement('div');
+    const tabs = c.tabs || [];
+    const stateKey = controlKey(surfaceId, c.id);
+    const activeIndex = Math.min(Number(overrides.get(stateKey) || 0), tabs.length - 1);
+    tabs.forEach((tab, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tab' + (index === activeIndex ? ' active' : '');
+      button.textContent = dyn(surfaceId, tab.title);
+      button.addEventListener('click', () => {
+        overrides.set(stateKey, index);
+        renderSurfaces();
+      });
+      bar.append(button);
+    });
+    const active = tabs[activeIndex];
+    if (active) panel.append(renderComponent(surfaceId, active.child));
+    wrap.append(bar, panel);
+    return wrap;
+  }
+  if (c.component === 'Modal') {
+    const wrap = document.createElement('div');
+    const trigger = document.createElement('div');
+    trigger.style.cursor = 'pointer';
+    trigger.append(renderComponent(surfaceId, c.trigger));
+    trigger.addEventListener('click', () => {
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      const panel = document.createElement('div');
+      panel.className = 'modal-panel';
+      panel.append(renderComponent(surfaceId, c.content));
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'button';
+      close.textContent = '关闭';
+      close.addEventListener('click', () => backdrop.remove());
+      backdrop.addEventListener('click', event => {
+        if (event.target === backdrop) backdrop.remove();
+      });
+      panel.append(close);
+      backdrop.append(panel);
+      document.body.append(backdrop);
+    });
+    wrap.append(trigger);
+    return wrap;
+  }
+  if (c.component === 'DateTimeInput') {
+    const wrap = document.createElement('label');
+    wrap.className = 'field';
+    const label = document.createElement('span');
+    label.className = 'field-label';
+    if (c.label !== undefined) label.textContent = dyn(surfaceId, c.label);
+    const input = document.createElement('input');
+    input.className = 'control';
+    input.type = c.enableDate && c.enableTime ? 'datetime-local' : c.enableTime ? 'time' : 'date';
+    const current = controlValue(surfaceId, c, '');
+    input.value = current === null || current === undefined ? '' : String(current);
+    if (c.min !== undefined) input.min = dyn(surfaceId, c.min);
+    if (c.max !== undefined) input.max = dyn(surfaceId, c.max);
+    input.addEventListener('input', () => commitControl(surfaceId, c, input.value));
+    wrap.append(label, input);
+    return wrap;
+  }
+  if (c.component === 'Video') {
+    const el = document.createElement('video');
+    el.className = 'media';
+    el.controls = true;
+    el.src = dyn(surfaceId, c.url);
+    if (c.posterUrl !== undefined) el.poster = dyn(surfaceId, c.posterUrl);
+    return el;
+  }
+  if (c.component === 'AudioPlayer') {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    if (c.description !== undefined) {
+      const label = document.createElement('span');
+      label.className = 'field-label';
+      label.textContent = dyn(surfaceId, c.description);
+      wrap.append(label);
+    }
+    const audio = document.createElement('audio');
+    audio.className = 'media';
+    audio.controls = true;
+    audio.src = dyn(surfaceId, c.url);
+    wrap.append(audio);
     return wrap;
   }
   if (c.component === 'Text') {

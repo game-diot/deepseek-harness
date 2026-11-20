@@ -104,6 +104,52 @@ const component = z.discriminatedUnion('component', [
   }),
   z.strictObject({
     id: componentId,
+    component: z.literal('List'),
+    children: z.array(componentId),
+    direction: z.enum(['vertical', 'horizontal']).optional(),
+    align: align.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Tabs'),
+    tabs: z.array(z.strictObject({ title: dynamicString, child: componentId })).min(1),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Modal'),
+    trigger: componentId,
+    content: componentId,
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('DateTimeInput'),
+    value: dynamicString,
+    label: dynamicString.optional(),
+    enableDate: z.boolean().optional(),
+    enableTime: z.boolean().optional(),
+    min: dynamicString.optional(),
+    max: dynamicString.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Video'),
+    url: dynamicString,
+    posterUrl: dynamicString.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('AudioPlayer'),
+    url: dynamicString,
+    description: dynamicString.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('Text'),
     text: dynamicString,
     variant: z.enum(['body', 'caption']).optional(),
@@ -163,6 +209,12 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'CheckBox': return []
     case 'ChoicePicker': return []
     case 'Slider': return []
+    case 'List': return value.children
+    case 'Tabs': return value.tabs.map(tab => tab.child)
+    case 'Modal': return [value.trigger, value.content]
+    case 'DateTimeInput': return []
+    case 'Video': return []
+    case 'AudioPlayer': return []
     case 'Text': return []
   }
 }
