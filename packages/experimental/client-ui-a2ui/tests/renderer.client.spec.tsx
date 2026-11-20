@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import { StrictMode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { A2uiClientEnvelope } from '../src/client/metadata.ts'
 
@@ -33,6 +33,7 @@ vi.mock('@a2ui/react', () => ({
     name: 'confirm', surfaceId: 'card', sourceComponentId: 'button', timestamp: '2026-11-19T00:00:00Z',
     context: {}, userMessage: 'Confirm the task',
   })}>{surface.id}</button>,
+  MarkdownComponentContext: { Provider: ({ children }: { children?: ReactNode }) => <>{children}</> },
 }))
 vi.mock('@a2ui/react/styles', () => ({ injectStyles, removeStyles }))
 

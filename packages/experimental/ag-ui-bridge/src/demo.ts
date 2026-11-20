@@ -174,6 +174,48 @@ function resolveDeep(surfaceId, value) {
   return value;
 }
 
+// This page is a template literal, so the script avoids backslash escapes: a regex here
+// would lose its escapes when the template is evaluated.
+const MARKERS = [
+  { marker: '**', tag: 'strong' },
+  { marker: '__', tag: 'strong' },
+  { marker: '\u0060', tag: 'code' },
+  { marker: '*', tag: 'em' },
+  { marker: '_', tag: 'em' },
+];
+const NEWLINE = String.fromCharCode(10);
+
+function renderMarkdown(text) {
+  const fragment = document.createDocumentFragment();
+  const source = text === undefined || text === null ? '' : String(text);
+  source.split(NEWLINE).forEach((line, index) => {
+    if (index > 0) fragment.append(document.createElement('br'));
+    let rest = line;
+    while (rest.length > 0) {
+      let hit = null;
+      for (const { marker, tag } of MARKERS) {
+        const open = rest.indexOf(marker);
+        if (open === -1) continue;
+        const close = rest.indexOf(marker, open + marker.length);
+        if (close === -1) continue;
+        if (hit === null || open < hit.open || (open === hit.open && marker.length > hit.marker.length)) {
+          hit = { open, close, marker, tag };
+        }
+      }
+      if (hit === null) {
+        fragment.append(document.createTextNode(rest));
+        break;
+      }
+      if (hit.open > 0) fragment.append(document.createTextNode(rest.slice(0, hit.open)));
+      const el = document.createElement(hit.tag);
+      el.textContent = rest.slice(hit.open + hit.marker.length, hit.close);
+      fragment.append(el);
+      rest = rest.slice(hit.close + hit.marker.length);
+    }
+  });
+  return fragment;
+}
+
 function newThreadId() {
   return 'demo-' + Math.random().toString(36).slice(2);
 }
@@ -502,7 +544,7 @@ function renderComponent(surfaceId, id) {
   if (c.component === 'Text') {
     const el = document.createElement('div');
     el.className = 'text' + (c.variant === 'caption' ? ' caption' : '');
-    el.textContent = dyn(surfaceId, c.text);
+    el.append(renderMarkdown(dyn(surfaceId, c.text)));
     return el;
   }
   if (c.component === 'Button') {

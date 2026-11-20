@@ -1,7 +1,8 @@
 /** One isolated A2UI processor and its rendered Surfaces. */
 
 import { useEffect, useInsertionEffect, useRef, useState } from 'react'
-import { A2uiSurface, type ReactCatalogComponent } from '@a2ui/react'
+import { A2uiSurface, MarkdownComponentContext, type ReactCatalogComponent } from '@a2ui/react'
+import { SafeMarkdown } from './Markdown.tsx'
 import { injectStyles, removeStyles } from '@a2ui/react/styles'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
@@ -74,7 +75,9 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
   if (state.error) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
   if (state.surfaces.length === 0) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
   return <div className={css.root}>
-    {state.surfaces.map(surface => surface === undefined ? null : <A2uiSurface key={surface.id} surface={surface} />)}
+    <MarkdownComponentContext.Provider value={SafeMarkdown}>
+      {state.surfaces.map(surface => surface === undefined ? null : <A2uiSurface key={surface.id} surface={surface} />)}
+    </MarkdownComponentContext.Provider>
     {actionNotice !== undefined && <div role="status" className={css.notice}>{actionNotice}</div>}
   </div>
 }
