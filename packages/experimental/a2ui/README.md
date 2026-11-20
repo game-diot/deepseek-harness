@@ -89,7 +89,7 @@ Append-only; each result follows the reusable request prefix.
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Separate Client renderer** — this Host package persists metadata; the optional `dsh-client-ui-a2ui` package renders it.
-- **Restricted protocol subset** — only four Basic Catalog components and four A2UI message operations are admitted.
+- **Restricted protocol subset** — Card, Column, Row, Text, Button, Divider, Image, and Icon are admitted with their catalog enums; the remaining Basic Catalog components (TextField, CheckBox, ChoicePicker, Slider, DateTimeInput, List, Tabs, Modal, Video, AudioPlayer) and three of the four A2UI message operations' neighbours (state snapshots and deltas) stay deferred. Arbitrary CSS, inline HTML, and animation are deliberately outside the catalog.
 - **Message-based action return** — the optional Client submits bounded structured actions through native user messages; no dedicated Session event exists yet.
 - **No Markdown renderer** — Text remains plain text in this subset.
 

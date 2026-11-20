@@ -290,6 +290,71 @@ describe('a2ui_render', () => {
     expect(result.isError).toBe(true)
   })
 
+  it('accepts the layout, media, and icon components of the Basic Catalog', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'richSurface',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['headline', 'split', 'rule', 'note'], align: 'stretch' },
+          { id: 'headline', component: 'Row', children: ['badge', 'title'], justify: 'start', align: 'center' },
+          { id: 'badge', component: 'Icon', name: 'check' },
+          { id: 'title', component: 'Text', text: 'Rich card', variant: 'body' },
+          { id: 'split', component: 'Row', children: ['avatar', 'rule2'], justify: 'spaceBetween' },
+          {
+            id: 'avatar', component: 'Image',
+            url: 'https://example.com/a.png', description: 'avatar', fit: 'cover', variant: 'avatar',
+          },
+          { id: 'rule2', component: 'Divider', axis: 'vertical' },
+          { id: 'rule', component: 'Divider' },
+          { id: 'note', component: 'Text', text: 'caption', variant: 'caption', weight: 1 },
+        ],
+      },
+    }])
+
+    expect(result).toMatchObject({ isError: false, value: { protocol: 'a2ui/v1' } })
+  })
+
+  it('rejects a layout property outside the Basic Catalog enum', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'badLayout',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Column', children: ['t'], justify: 'sideways' },
+          { id: 't', component: 'Text', text: 'x' },
+        ],
+      },
+    }])
+
+    expect(result.isError).toBe(true)
+  })
+
+  it('rejects an Icon name that is not a plain identifier and unknown component props', async () => {
+    const ctx = await setup()
+    const batches = [
+      [{ id: 'root', component: 'Icon', name: '<svg onload=alert(1)>' }],
+      [{ id: 'root', component: 'Divider', colour: 'red' }],
+      [{ id: 'root', component: 'Image', url: 'x', style: 'color:red' }],
+    ]
+    for (const components of batches) {
+      const result = await call(ctx, [{
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'badProps',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components,
+        },
+      }])
+      expect(result.isError).toBe(true)
+    }
+  })
+
   it('rejects a non-object createSurface dataModel', async () => {
     const ctx = await setup()
     const invalid = structuredClone(createSurface)

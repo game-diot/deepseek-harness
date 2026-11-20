@@ -28,7 +28,15 @@ export function demoPage(runPath: string): string {
   .surface { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
   .surface-id { font: 11px/1.4 ui-monospace, monospace; opacity: .6; margin-bottom: 8px; }
   .col { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; flex-direction: row; gap: 10px; align-items: center; }
   .text { white-space: pre-wrap; }
+  .caption { font-size: 12px; opacity: .75; }
+  .divider-h { border: 0; border-top: 1px solid rgba(127,127,127,.35); margin: 6px 0; width: 100%; }
+  .divider-v { border: 0; border-left: 1px solid rgba(127,127,127,.35); margin: 0 6px; align-self: stretch; }
+  .image { max-width: 100%; border-radius: 8px; }
+  .image.avatar { width: 48px; height: 48px; border-radius: 50%; }
+  .image.icon { width: 24px; height: 24px; }
+  .icon { font-size: 18px; line-height: 1; }
   .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5); cursor: pointer; }
   .fallback { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
   #status { font: 12px/1.4 ui-monospace, monospace; opacity: .75; }
@@ -63,7 +71,38 @@ let messages = [];
 let busy = false;
 const surfaces = new Map();
 const components = new Map();
+const dataModels = new Map();
 const logLines = [];
+
+const JUSTIFY = {
+  start: 'flex-start', center: 'center', end: 'flex-end',
+  spaceBetween: 'space-between', spaceAround: 'space-around', spaceEvenly: 'space-evenly', stretch: 'stretch',
+};
+const ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
+const FIT = { contain: 'contain', cover: 'cover', fill: 'fill', none: 'none', scaleDown: 'scale-down' };
+const ICONS = {
+  check: '✓', close: '✕', add: '＋', delete: '🗑', edit: '✎', search: '🔍', home: '🏠',
+  mail: '✉', info: 'ℹ', help: '?', error: '⚠', favorite: '★', favoriteOff: '☆',
+  calendarToday: '📅', locationOn: '📍', menu: '☰', moreVert: '⋮', download: '⭳',
+  arrowBack: '←', arrowForward: '→', accountCircle: '👤', lock: '🔒', lockOpen: '🔓',
+};
+
+function resolvePath(surfaceId, path) {
+  let cur = dataModels.get(surfaceId) || {};
+  for (const segment of String(path).split('/').filter(Boolean)) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    cur = cur[segment];
+  }
+  return cur;
+}
+
+function dyn(surfaceId, value) {
+  if (value !== null && typeof value === 'object' && typeof value['@path'] === 'string') {
+    const resolved = resolvePath(surfaceId, value['@path']);
+    return resolved === undefined ? '' : String(resolved);
+  }
+  return value === undefined || value === null ? '' : String(value);
+}
 
 function newThreadId() {
   return 'demo-' + Math.random().toString(36).slice(2);
@@ -74,6 +113,7 @@ function resetThread() {
   messages = [];
   surfaces.clear();
   components.clear();
+  dataModels.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
   document.getElementById('log').textContent = '';
@@ -163,13 +203,44 @@ function renderComponent(surfaceId, id) {
   if (c.component === 'Column') {
     const el = document.createElement('div');
     el.className = 'col';
+    if (c.justify) el.style.justifyContent = JUSTIFY[c.justify] || 'flex-start';
+    if (c.align) el.style.alignItems = ALIGN[c.align] || 'stretch';
     for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    return el;
+  }
+  if (c.component === 'Row') {
+    const el = document.createElement('div');
+    el.className = 'row';
+    if (c.justify) el.style.justifyContent = JUSTIFY[c.justify] || 'flex-start';
+    if (c.align) el.style.alignItems = ALIGN[c.align] || 'center';
+    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    return el;
+  }
+  if (c.component === 'Divider') {
+    const el = document.createElement('div');
+    el.className = c.axis === 'vertical' ? 'divider-v' : 'divider-h';
+    return el;
+  }
+  if (c.component === 'Image') {
+    const el = document.createElement('img');
+    el.className = 'image' + (c.variant ? ' ' + c.variant : '');
+    el.src = dyn(surfaceId, c.url);
+    el.alt = dyn(surfaceId, c.description);
+    el.style.objectFit = FIT[c.fit] || 'fill';
+    el.addEventListener('error', () => el.replaceWith(fallback('image failed to load')));
+    return el;
+  }
+  if (c.component === 'Icon') {
+    const el = document.createElement('span');
+    el.className = 'icon';
+    el.title = String(c.name);
+    el.textContent = ICONS[c.name] || '•';
     return el;
   }
   if (c.component === 'Text') {
     const el = document.createElement('div');
-    el.className = 'text';
-    el.textContent = String(c.text ?? '');
+    el.className = 'text' + (c.variant === 'caption' ? ' caption' : '');
+    el.textContent = dyn(surfaceId, c.text);
     return el;
   }
   if (c.component === 'Button') {
@@ -195,6 +266,7 @@ function applyA2ui(payload) {
     if (message.createSurface) {
       const surface = message.createSurface;
       surfaces.set(surface.surfaceId, []);
+      dataModels.set(surface.surfaceId, surface.dataModel || {});
       for (const component of surface.components || []) {
         components.set(surface.surfaceId + '/' + component.id, component);
         surfaces.get(surface.surfaceId).push(component.id);
@@ -211,9 +283,23 @@ function applyA2ui(payload) {
     if (message.deleteSurface) {
       const surfaceId = message.deleteSurface.surfaceId;
       surfaces.delete(surfaceId);
+      dataModels.delete(surfaceId);
       for (const key of [...components.keys()]) {
         if (key.startsWith(surfaceId + '/')) components.delete(key);
       }
+    }
+    if (message.updateDataModel) {
+      const update = message.updateDataModel;
+      const model = dataModels.get(update.surfaceId) || {};
+      const segments = String(update.path).split('/').filter(Boolean);
+      let cursor = model;
+      for (const segment of segments.slice(0, -1)) {
+        if (cursor[segment] === null || typeof cursor[segment] !== 'object') cursor[segment] = {};
+        cursor = cursor[segment];
+      }
+      const leaf = segments[segments.length - 1];
+      if (leaf !== undefined) cursor[leaf] = update.value;
+      dataModels.set(update.surfaceId, model);
     }
   }
   renderSurfaces();

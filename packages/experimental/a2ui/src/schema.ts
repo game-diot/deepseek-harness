@@ -19,15 +19,55 @@ const event = z.strictObject({
   userMessage: z.string().optional(),
   context: z.record(z.string(), dynamicValue).optional(),
 })
+const dynamicString = z.union([z.string(), binding])
+const weight = z.number()
+const align = z.enum(['start', 'center', 'end', 'stretch'])
+const justify = z.enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
 const component = z.discriminatedUnion('component', [
-  z.strictObject({ id: componentId, component: z.literal('Card'), child: componentId }),
-  z.strictObject({ id: componentId, component: z.literal('Column'), children: z.array(componentId) }),
+  z.strictObject({ id: componentId, component: z.literal('Card'), child: componentId, weight: weight.optional() }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Column'),
+    children: z.array(componentId),
+    justify: justify.optional(),
+    align: align.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Row'),
+    children: z.array(componentId),
+    justify: justify.optional(),
+    align: align.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Divider'),
+    axis: z.enum(['horizontal', 'vertical']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Image'),
+    url: dynamicString,
+    description: dynamicString.optional(),
+    fit: z.enum(['contain', 'cover', 'fill', 'none', 'scaleDown']).optional(),
+    variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'hero']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Icon'),
+    name: z.string().regex(/^[\p{ID_Start}][\p{ID_Continue}]*$/u),
+    weight: weight.optional(),
+  }),
   z.strictObject({
     id: componentId,
     component: z.literal('Text'),
-    text: z.union([z.string(), binding]),
+    text: dynamicString,
     variant: z.enum(['body', 'caption']).optional(),
-    weight: z.number().optional(),
+    weight: weight.optional(),
   }),
   z.strictObject({
     id: componentId,
@@ -35,6 +75,7 @@ const component = z.discriminatedUnion('component', [
     child: componentId,
     variant: z.enum(['default', 'primary', 'borderless']).optional(),
     action: z.strictObject({ event }),
+    weight: weight.optional(),
   }),
 ])
 const createSurfaceMessage = z.strictObject({
@@ -73,7 +114,11 @@ function referencedIds(value: ParsedComponent): readonly string[] {
   switch (value.component) {
     case 'Card': return [value.child]
     case 'Column': return value.children
+    case 'Row': return value.children
     case 'Button': return [value.child]
+    case 'Divider': return []
+    case 'Icon': return []
+    case 'Image': return []
     case 'Text': return []
   }
 }
