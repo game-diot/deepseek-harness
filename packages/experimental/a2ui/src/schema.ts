@@ -7,7 +7,8 @@ import {
 } from './types.ts'
 
 const binding = z.strictObject({ '@path': z.string() })
-const componentId = z.string().regex(/^[\p{ID_Start}_][\p{ID_Continue}]*$/u)
+// The catalog admits any string id; bound the length and reject control characters.
+const componentId = z.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u)
 const literalObject = z.record(z.string(), z.json()).refine(value => (
   Object.keys(value).every(key => !/^@(?:[^@]|$)/u.test(key))
 ))
@@ -19,15 +20,140 @@ const event = z.strictObject({
   userMessage: z.string().optional(),
   context: z.record(z.string(), dynamicValue).optional(),
 })
+const dynamicString = z.union([z.string(), binding])
+const dynamicBoolean = z.union([z.boolean(), binding])
+const dynamicNumber = z.union([z.number(), binding])
+const dynamicStringList = z.union([z.array(z.string()), binding])
+const weight = z.number()
+const align = z.enum(['start', 'center', 'end', 'stretch'])
+const justify = z.enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
 const component = z.discriminatedUnion('component', [
-  z.strictObject({ id: componentId, component: z.literal('Card'), child: componentId }),
-  z.strictObject({ id: componentId, component: z.literal('Column'), children: z.array(componentId) }),
+  z.strictObject({ id: componentId, component: z.literal('Card'), child: componentId, weight: weight.optional() }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Column'),
+    children: z.array(componentId),
+    justify: justify.optional(),
+    align: align.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Row'),
+    children: z.array(componentId),
+    justify: justify.optional(),
+    align: align.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Divider'),
+    axis: z.enum(['horizontal', 'vertical']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Image'),
+    url: dynamicString,
+    description: dynamicString.optional(),
+    fit: z.enum(['contain', 'cover', 'fill', 'none', 'scaleDown']).optional(),
+    variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'hero']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Icon'),
+    name: z.string().regex(/^[\p{ID_Start}][\p{ID_Continue}]*$/u),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('TextField'),
+    label: dynamicString,
+    value: dynamicString,
+    placeholder: dynamicString.optional(),
+    variant: z.enum(['longText', 'number', 'shortText', 'obscured']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('CheckBox'),
+    label: dynamicString,
+    value: dynamicBoolean,
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('ChoicePicker'),
+    label: dynamicString,
+    options: z.array(z.strictObject({ label: dynamicString, value: z.string() })).min(1),
+    value: dynamicStringList,
+    variant: z.enum(['multipleSelection', 'mutuallyExclusive']).optional(),
+    displayStyle: z.enum(['checkbox', 'chips']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Slider'),
+    label: dynamicString.optional(),
+    min: z.number().optional(),
+    max: z.number(),
+    value: dynamicNumber,
+    steps: z.number().int().min(1).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('List'),
+    children: z.array(componentId),
+    direction: z.enum(['vertical', 'horizontal']).optional(),
+    align: align.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Tabs'),
+    tabs: z.array(z.strictObject({ title: dynamicString, child: componentId })).min(1),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Modal'),
+    trigger: componentId,
+    content: componentId,
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('DateTimeInput'),
+    value: dynamicString,
+    label: dynamicString.optional(),
+    enableDate: z.boolean().optional(),
+    enableTime: z.boolean().optional(),
+    min: dynamicString.optional(),
+    max: dynamicString.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Video'),
+    url: dynamicString,
+    posterUrl: dynamicString.optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('AudioPlayer'),
+    url: dynamicString,
+    description: dynamicString.optional(),
+    weight: weight.optional(),
+  }),
   z.strictObject({
     id: componentId,
     component: z.literal('Text'),
-    text: z.union([z.string(), binding]),
+    text: dynamicString,
     variant: z.enum(['body', 'caption']).optional(),
-    weight: z.number().optional(),
+    weight: weight.optional(),
   }),
   z.strictObject({
     id: componentId,
@@ -35,6 +161,7 @@ const component = z.discriminatedUnion('component', [
     child: componentId,
     variant: z.enum(['default', 'primary', 'borderless']).optional(),
     action: z.strictObject({ event }),
+    weight: weight.optional(),
   }),
 ])
 const createSurfaceMessage = z.strictObject({
@@ -73,7 +200,21 @@ function referencedIds(value: ParsedComponent): readonly string[] {
   switch (value.component) {
     case 'Card': return [value.child]
     case 'Column': return value.children
+    case 'Row': return value.children
     case 'Button': return [value.child]
+    case 'Divider': return []
+    case 'Icon': return []
+    case 'Image': return []
+    case 'TextField': return []
+    case 'CheckBox': return []
+    case 'ChoicePicker': return []
+    case 'Slider': return []
+    case 'List': return value.children
+    case 'Tabs': return value.tabs.map(tab => tab.child)
+    case 'Modal': return [value.trigger, value.content]
+    case 'DateTimeInput': return []
+    case 'Video': return []
+    case 'AudioPlayer': return []
     case 'Text': return []
   }
 }

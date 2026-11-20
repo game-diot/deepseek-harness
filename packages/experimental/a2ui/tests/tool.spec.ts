@@ -290,6 +290,217 @@ describe('a2ui_render', () => {
     expect(result.isError).toBe(true)
   })
 
+  it('accepts the layout, media, and icon components of the Basic Catalog', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'richSurface',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['headline', 'split', 'rule', 'note'], align: 'stretch' },
+          { id: 'headline', component: 'Row', children: ['badge', 'title'], justify: 'start', align: 'center' },
+          { id: 'badge', component: 'Icon', name: 'check' },
+          { id: 'title', component: 'Text', text: 'Rich card', variant: 'body' },
+          { id: 'split', component: 'Row', children: ['avatar', 'rule2'], justify: 'spaceBetween' },
+          {
+            id: 'avatar', component: 'Image',
+            url: 'https://example.com/a.png', description: 'avatar', fit: 'cover', variant: 'avatar',
+          },
+          { id: 'rule2', component: 'Divider', axis: 'vertical' },
+          { id: 'rule', component: 'Divider' },
+          { id: 'note', component: 'Text', text: 'caption', variant: 'caption', weight: 1 },
+        ],
+      },
+    }])
+
+    expect(result).toMatchObject({ isError: false, value: { protocol: 'a2ui/v1' } })
+  })
+
+  it('rejects a layout property outside the Basic Catalog enum', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'badLayout',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Column', children: ['t'], justify: 'sideways' },
+          { id: 't', component: 'Text', text: 'x' },
+        ],
+      },
+    }])
+
+    expect(result.isError).toBe(true)
+  })
+
+  it('rejects an Icon name that is not a plain identifier and unknown component props', async () => {
+    const ctx = await setup()
+    const batches = [
+      [{ id: 'root', component: 'Icon', name: '<svg onload=alert(1)>' }],
+      [{ id: 'root', component: 'Divider', colour: 'red' }],
+      [{ id: 'root', component: 'Image', url: 'x', style: 'color:red' }],
+    ]
+    for (const components of batches) {
+      const result = await call(ctx, [{
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'badProps',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components,
+        },
+      }])
+      expect(result.isError).toBe(true)
+    }
+  })
+
+  it('accepts the four form controls bound to the data model', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'formSurface',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { form: { name: '', agree: false, city: [], age: 30 } },
+        components: [
+          { id: 'root', component: 'Card', child: 'form' },
+          { id: 'form', component: 'Column', children: ['name', 'agree', 'city', 'age', 'submit'] },
+          {
+            id: 'name', component: 'TextField',
+            label: '姓名', value: { '@path': '/form/name' }, placeholder: '请输入', variant: 'shortText',
+          },
+          { id: 'agree', component: 'CheckBox', label: '同意条款', value: { '@path': '/form/agree' } },
+          {
+            id: 'city', component: 'ChoicePicker', label: '城市',
+            options: [{ label: '北京', value: 'bj' }, { label: '重庆', value: 'cq' }],
+            value: { '@path': '/form/city' }, variant: 'mutuallyExclusive',
+          },
+          { id: 'age', component: 'Slider', label: '年龄', min: 0, max: 120, value: { '@path': '/form/age' }, steps: 120 },
+          {
+            id: 'submit', component: 'Button', child: 'submitLabel',
+            action: { event: { name: 'submitForm', context: { name: { '@path': '/form/name' } } } },
+          },
+          { id: 'submitLabel', component: 'Text', text: '提交' },
+        ],
+      },
+    }])
+
+    expect(result).toMatchObject({ isError: false, value: { protocol: 'a2ui/v1' } })
+  })
+
+  it('rejects form controls with missing required fields or out-of-catalog options', async () => {
+    const ctx = await setup()
+    const batches = [
+      [{ id: 'root', component: 'TextField', label: 'x' }],
+      [{ id: 'root', component: 'CheckBox', label: 'x', value: 'yes' }],
+      [{ id: 'root', component: 'Slider', value: 1 }],
+      [{ id: 'root', component: 'Slider', value: 1, max: 10, steps: 0 }],
+      [{
+        id: 'root', component: 'ChoicePicker', label: 'x', value: [],
+        options: [{ label: 'a', value: 'a', extra: true }],
+      }],
+      [{ id: 'root', component: 'TextField', label: 'x', value: 'v', checks: [] }],
+    ]
+    for (const components of batches) {
+      const result = await call(ctx, [{
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'badForm',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components,
+        },
+      }])
+      expect(result.isError).toBe(true)
+    }
+  })
+
+  it('accepts catalog-legal ids with hyphens and rejects over-long ids', async () => {
+    const ctx = await setup()
+    const ok = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'form-1',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body-1' },
+          { id: 'body-1', component: 'Column', children: ['submit-btn'] },
+          {
+            id: 'submit-btn', component: 'Button', child: 'label-1',
+            action: { event: { name: 'submit-form' } },
+          },
+          { id: 'label-1', component: 'Text', text: '提交' },
+        ],
+      },
+    }])
+    expect(ok).toMatchObject({ isError: false })
+
+    const longId = 'x'.repeat(65)
+    const rejected = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'long-id',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: longId, component: 'Text', text: 'x' }],
+      },
+    }])
+    expect(rejected.isError).toBe(true)
+  })
+
+  it('accepts the remaining Basic Catalog components', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'kitchenSink',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['list', 'tabs', 'modal', 'when', 'clip', 'track'] },
+          { id: 'list', component: 'List', direction: 'horizontal', children: ['item1', 'item2'] },
+          { id: 'item1', component: 'Text', text: 'one' },
+          { id: 'item2', component: 'Text', text: 'two' },
+          {
+            id: 'tabs', component: 'Tabs',
+            tabs: [{ title: '第一页', child: 'tabOne' }, { title: '第二页', child: 'tabTwo' }],
+          },
+          { id: 'tabOne', component: 'Text', text: '第一个标签页' },
+          { id: 'tabTwo', component: 'Text', text: '第二个标签页' },
+          { id: 'modal', component: 'Modal', trigger: 'openBtn', content: 'modalText' },
+          { id: 'openBtn', component: 'Text', text: '打开弹窗' },
+          { id: 'modalText', component: 'Text', text: '弹窗内容' },
+          { id: 'when', component: 'DateTimeInput', label: '时间', value: '', enableDate: true, enableTime: true },
+          { id: 'clip', component: 'Video', url: 'https://example.com/v.mp4', posterUrl: 'https://example.com/p.png' },
+          { id: 'track', component: 'AudioPlayer', url: 'https://example.com/a.mp3', description: '示例音频' },
+        ],
+      },
+    }])
+
+    expect(result).toMatchObject({ isError: false, value: { protocol: 'a2ui/v1' } })
+  })
+
+  it('rejects incomplete tabs, modals, and date-time inputs', async () => {
+    const ctx = await setup()
+    const batches = [
+      [{ id: 'root', component: 'Tabs', tabs: [] }],
+      [{ id: 'root', component: 'Modal', trigger: 'a' }],
+      [{ id: 'root', component: 'DateTimeInput', label: 'x' }],
+      [{ id: 'root', component: 'Video' }],
+      [{ id: 'root', component: 'AudioPlayer', url: 'x', autoplay: true }],
+    ]
+    for (const components of batches) {
+      const result = await call(ctx, [{
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'badKitchenSink',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components,
+        },
+      }])
+      expect(result.isError).toBe(true)
+    }
+  })
+
   it('rejects a non-object createSurface dataModel', async () => {
     const ctx = await setup()
     const invalid = structuredClone(createSurface)

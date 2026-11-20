@@ -89,9 +89,9 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - **独立 Client 渲染器**——本 Host 包持久化元数据；可选 `dsh-client-ui-a2ui` 包负责渲染。
-- **受限协议子集**——只允许四种 Basic Catalog 组件和四种 A2UI 消息操作。
+- **受限协议子集**——Basic Catalog v1.0 的全部组件及其目录字段与数据模型绑定均已准入。渲染器 `checks`、数据驱动 `ChildList` 模板与 AG-UI 状态快照/增量仍延期；任意 CSS、内嵌 HTML 与动画按设计不在目录内，目录的样式面只有 `variant`、`weight`、`justify`、`align`、`fit`、`axis`、`direction`。
 - **基于消息的 Action 回传**——可选 Client 通过原生用户消息提交有界结构化 Action；目前没有专用 Session 事件。
-- **没有 Markdown 渲染器**——该子集中的 Text 保持纯文本。
+- **仅内联 Markdown**——渲染器支持 `strong`、`emphasis`、`code` 与换行；HTML、图片与链接保持字面文本，与目录声明的 Markdown 限制一致。
 
 <a id="dev-note"></a>
 ### 开发备注

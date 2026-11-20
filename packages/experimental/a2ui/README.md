@@ -89,9 +89,9 @@ Append-only; each result follows the reusable request prefix.
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Separate Client renderer** — this Host package persists metadata; the optional `dsh-client-ui-a2ui` package renders it.
-- **Restricted protocol subset** — only four Basic Catalog components and four A2UI message operations are admitted.
+- **Restricted protocol subset** — every Basic Catalog v1.0 component is admitted with its catalog fields and data-model bindings. Renderer-side `checks`, data-driven `ChildList` templates, and AG-UI state snapshots/deltas stay deferred; arbitrary CSS, inline HTML, and animation are deliberately outside the catalog, whose styling surface is limited to `variant`, `weight`, `justify`, `align`, `fit`, `axis`, and `direction`.
 - **Message-based action return** — the optional Client submits bounded structured actions through native user messages; no dedicated Session event exists yet.
-- **No Markdown renderer** — Text remains plain text in this subset.
+- **Inline Markdown only** — the renderers support `strong`, `emphasis`, and `code` spans plus line breaks; HTML, images, and links stay literal text, matching the catalog's stated Markdown limits.
 
 <a id="dev-note"></a>
 ### Dev Note
