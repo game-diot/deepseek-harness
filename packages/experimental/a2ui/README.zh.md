@@ -92,6 +92,7 @@ kind: "package-reference"
 - **受限协议子集**——Basic Catalog v1.0 的全部组件及其目录字段与数据模型绑定均已准入。渲染器 `checks`、数据驱动 `ChildList` 模板与 AG-UI 状态快照/增量仍延期；任意 CSS、内嵌 HTML 与动画按设计不在目录内，目录的样式面只有 `variant`、`weight`、`justify`、`align`、`fit`、`axis`、`direction`。
 - **基于消息的 Action 回传**——可选 Client 通过原生用户消息提交有界结构化 Action；目前没有专用 Session 事件。
 - **仅内联 Markdown**——渲染器支持 `strong`、`emphasis`、`code` 与换行；HTML、图片与链接保持字面文本，与目录声明的 Markdown 限制一致。
+- **Surface 主题 token**——`createSurface.metadata.extensions.dsh_theme` 携带封闭的 `tone`（`neutral`/`info`/`success`/`warning`/`danger`）、`density`（`compact`/`comfortable`/`spacious`）与 `textScale`（`sm`/`md`/`lg`）token，渲染器把它们映射到目录的间距、字号与强调色。自由颜色、尺寸与 CSS 仍被拒绝。
 - **增量消息只做形状校验**——工具按 Session 记住最多 32 个 surface id，因此 `updateComponents`、`updateDataModel` 与 `deleteSurface` 可以指向更早调用创建的 surface。这类跨调用消息只校验组件形状，因为本次调用没有该 surface 的图；完整图校验由 Client 渲染器负责。该记忆为进程生命周期、按 Session 隔离。
 
 <a id="dev-note"></a>

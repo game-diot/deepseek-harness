@@ -30,6 +30,12 @@
   margin: 8px 0 0 24px;
 }
 
+.surfaceHost {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .notice,
 .error {
   margin-top: 8px;

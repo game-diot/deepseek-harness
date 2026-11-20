@@ -3,6 +3,7 @@
 import { useEffect, useInsertionEffect, useRef, useState } from 'react'
 import { A2uiSurface, MarkdownComponentContext, type ReactCatalogComponent } from '@a2ui/react'
 import { SafeMarkdown } from './Markdown.tsx'
+import { readSurfaceTheme, surfaceThemeStyle } from './theme.ts'
 import { injectStyles, removeStyles } from '@a2ui/react/styles'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
@@ -74,10 +75,14 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
   if (state === undefined) return <div className={css.root}>{copy.loading ?? ''}</div>
   if (state.error) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
   if (state.surfaces.length === 0) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
+  const theme = readSurfaceTheme(metadata.messages)
+  const themed = surfaceThemeStyle(theme)
   return <div className={css.root}>
-    <MarkdownComponentContext.Provider value={SafeMarkdown}>
-      {state.surfaces.map(surface => surface === undefined ? null : <A2uiSurface key={surface.id} surface={surface} />)}
-    </MarkdownComponentContext.Provider>
+    <div className={css.surfaceHost} data-tone={themed.tone} style={{ ...themed.vars }}>
+      <MarkdownComponentContext.Provider value={SafeMarkdown}>
+        {state.surfaces.map(surface => surface === undefined ? null : <A2uiSurface key={surface.id} surface={surface} />)}
+      </MarkdownComponentContext.Provider>
+    </div>
     {actionNotice !== undefined && <div role="status" className={css.notice}>{actionNotice}</div>}
   </div>
 }

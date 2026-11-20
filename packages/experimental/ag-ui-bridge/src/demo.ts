@@ -25,15 +25,20 @@ export function demoPage(runPath: string): string {
   input { flex: 1; padding: 8px 10px; }
   button { padding: 8px 14px; cursor: pointer; }
   button:disabled { cursor: progress; opacity: .55; }
-  .surface { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .surface { --a2ui-gap: 10px; --a2ui-font: 14px; --a2ui-accent: #8a8f98; border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .surface[data-tone="info"] { --a2ui-accent: #4c8dff; }
+  .surface[data-tone="success"] { --a2ui-accent: #3fb950; }
+  .surface[data-tone="warning"] { --a2ui-accent: #d29922; }
+  .surface[data-tone="danger"] { --a2ui-accent: #f85149; }
+  .card { border-left: 3px solid var(--a2ui-accent); padding-left: 10px; }
   @keyframes a2ui-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   @keyframes a2ui-flash { from { background: rgba(90,150,255,.35); } to { background: transparent; } }
   .surface .enter { animation: a2ui-enter .3s ease; }
   .surface .flash { animation: a2ui-flash .8s ease; }
   .surface-id { font: 11px/1.4 ui-monospace, monospace; opacity: .6; margin-bottom: 8px; }
-  .col { display: flex; flex-direction: column; gap: 10px; }
-  .row { display: flex; flex-direction: row; gap: 10px; align-items: center; }
-  .text { white-space: pre-wrap; }
+  .col { display: flex; flex-direction: column; gap: var(--a2ui-gap); }
+  .row { display: flex; flex-direction: row; gap: var(--a2ui-gap); align-items: center; }
+  .text { white-space: pre-wrap; font-size: var(--a2ui-font); }
   .caption { font-size: 12px; opacity: .75; }
   .divider-h { border: 0; border-top: 1px solid rgba(127,127,127,.35); margin: 6px 0; width: 100%; }
   .divider-v { border: 0; border-left: 1px solid rgba(127,127,127,.35); margin: 0 6px; align-self: stretch; }
@@ -49,7 +54,7 @@ export function demoPage(runPath: string): string {
   .slider { display: flex; gap: 8px; align-items: center; }
   .slider input { flex: 1; }
   .slider-value { font: 12px/1.4 ui-monospace, monospace; opacity: .8; min-width: 3ch; }
-  .list { display: flex; gap: 10px; }
+  .list { display: flex; gap: var(--a2ui-gap); }
   .list.vertical { flex-direction: column; }
   .list.horizontal { flex-direction: row; flex-wrap: wrap; }
   .tabs { display: flex; flex-direction: column; gap: 8px; }
@@ -59,7 +64,7 @@ export function demoPage(runPath: string): string {
   .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .modal-panel { background: Canvas; color: CanvasText; border-radius: 12px; padding: 18px; min-width: 280px; max-width: min(80vw, 520px); max-height: 80vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
   .media { max-width: 100%; border-radius: 8px; }
-  .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5); cursor: pointer; }
+  .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--a2ui-accent); cursor: pointer; }
   .fallback { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
   #status { font: 12px/1.4 ui-monospace, monospace; opacity: .75; }
   label { font-size: 12px; opacity: .8; display: flex; gap: 6px; align-items: center; }
@@ -96,12 +101,16 @@ const components = new Map();
 const dataModels = new Map();
 const surfaceBoxes = new Map();
 const signatureCache = new Map();
+const themes = new Map();
 const logLines = [];
 
 const JUSTIFY = {
   start: 'flex-start', center: 'center', end: 'flex-end',
   spaceBetween: 'space-between', spaceAround: 'space-around', spaceEvenly: 'space-evenly', stretch: 'stretch',
 };
+const DENSITY = { compact: '6px', comfortable: '10px', spacious: '16px' };
+const TEXT_SCALE = { sm: '12px', md: '14px', lg: '17px' };
+
 const ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
 const FIT = { contain: 'contain', cover: 'cover', fill: 'fill', none: 'none', scaleDown: 'scale-down' };
 const ICONS = {
@@ -234,6 +243,7 @@ function resetThread() {
   dataModels.clear();
   surfaceBoxes.clear();
   signatureCache.clear();
+  themes.clear();
   overrides.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
@@ -364,6 +374,19 @@ function renderSurfaces() {
       box.append(label);
       surfaceBoxes.set(surfaceId, box);
     }
+    const theme = themes.get(surfaceId);
+    if (theme === undefined) {
+      delete box.dataset.tone;
+      box.style.removeProperty('--a2ui-gap');
+      box.style.removeProperty('--a2ui-font');
+    } else {
+      if (theme.tone === undefined) delete box.dataset.tone;
+      else box.dataset.tone = theme.tone;
+      if (theme.density === undefined) box.style.removeProperty('--a2ui-gap');
+      else box.style.setProperty('--a2ui-gap', DENSITY[theme.density] || '');
+      if (theme.textScale === undefined) box.style.removeProperty('--a2ui-font');
+      else box.style.setProperty('--a2ui-font', TEXT_SCALE[theme.textScale] || '');
+    }
     const signatures = new Map();
     const referenced = new Set();
     for (const id of ids) {
@@ -432,6 +455,7 @@ function buildComponent(surfaceId, id) {
   if (!c) return fallback(id + ' missing');
   if (c.component === 'Card') {
     const el = document.createElement('div');
+    el.className = 'card';
     if (c.child) el.append(renderComponent(surfaceId, c.child));
     return el;
   }
@@ -693,6 +717,9 @@ function applyA2ui(payload) {
       const surface = message.createSurface;
       surfaces.set(surface.surfaceId, []);
       dataModels.set(surface.surfaceId, surface.dataModel || {});
+      const theme = surface.metadata && surface.metadata.extensions ? surface.metadata.extensions.dsh_theme : undefined;
+      if (theme) themes.set(surface.surfaceId, theme);
+      else themes.delete(surface.surfaceId);
       for (const component of surface.components || []) {
         components.set(surface.surfaceId + '/' + component.id, component);
         surfaces.get(surface.surfaceId).push(component.id);
@@ -710,6 +737,7 @@ function applyA2ui(payload) {
       const surfaceId = message.deleteSurface.surfaceId;
       surfaces.delete(surfaceId);
       dataModels.delete(surfaceId);
+      themes.delete(surfaceId);
       signatureCache.delete(surfaceId);
       const box = surfaceBoxes.get(surfaceId);
       if (box !== undefined) {

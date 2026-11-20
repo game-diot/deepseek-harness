@@ -502,6 +502,34 @@ describe('a2ui_render', () => {
     }
   })
 
+  it('admits the closed dsh_theme surface tokens and rejects anything else', async () => {
+    const ctx = await setup()
+    const build = (metadata: unknown) => ({
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'themed',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: 'root', component: 'Text', text: 'themed' }],
+        metadata,
+      },
+    })
+
+    const admitted = await call(ctx, [build({
+      extensions: { dsh_theme: { tone: 'danger', density: 'compact', textScale: 'lg' } },
+    })])
+    expect(admitted).toMatchObject({ isError: false })
+
+    const batches = [
+      { extensions: { dsh_theme: { tone: 'chartreuse' } } },
+      { extensions: { dsh_theme: { color: '#ff0000' } } },
+      { extensions: { other_theme: { tone: 'info' } } },
+      { unknown: true },
+    ]
+    for (const metadata of batches) {
+      expect((await call(ctx, [build(metadata)])).isError).toBe(true)
+    }
+  })
+
   it('admits incremental messages for a surface this session created earlier', async () => {
     const ctx = await setup()
     const agent = { session: {} }

@@ -164,6 +164,19 @@ const component = z.discriminatedUnion('component', [
     weight: weight.optional(),
   }),
 ])
+/** Closed token sets for the `dsh_theme` surface extension. */
+export const SURFACE_THEME = {
+  tone: ['neutral', 'info', 'success', 'warning', 'danger'],
+  density: ['compact', 'comfortable', 'spacious'],
+  textScale: ['sm', 'md', 'lg'],
+} as const
+
+const surfaceTheme = z.strictObject({
+  tone: z.enum(SURFACE_THEME.tone).optional(),
+  density: z.enum(SURFACE_THEME.density).optional(),
+  textScale: z.enum(SURFACE_THEME.textScale).optional(),
+})
+
 const createSurfaceMessage = z.strictObject({
   version: z.literal('1.0'),
   createSurface: z.strictObject({
@@ -171,6 +184,9 @@ const createSurfaceMessage = z.strictObject({
     catalogId: z.literal(A2UI_BASIC_CATALOG_ID),
     components: z.array(component).min(1),
     dataModel: z.record(z.string(), z.json()).optional(),
+    metadata: z.strictObject({
+      extensions: z.strictObject({ dsh_theme: surfaceTheme.optional() }).optional(),
+    }).optional(),
   }),
 })
 const message = z.union([
