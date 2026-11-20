@@ -355,6 +355,98 @@ describe('a2ui_render', () => {
     }
   })
 
+  it('accepts the four form controls bound to the data model', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'formSurface',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { form: { name: '', agree: false, city: [], age: 30 } },
+        components: [
+          { id: 'root', component: 'Card', child: 'form' },
+          { id: 'form', component: 'Column', children: ['name', 'agree', 'city', 'age', 'submit'] },
+          {
+            id: 'name', component: 'TextField',
+            label: '姓名', value: { '@path': '/form/name' }, placeholder: '请输入', variant: 'shortText',
+          },
+          { id: 'agree', component: 'CheckBox', label: '同意条款', value: { '@path': '/form/agree' } },
+          {
+            id: 'city', component: 'ChoicePicker', label: '城市',
+            options: [{ label: '北京', value: 'bj' }, { label: '重庆', value: 'cq' }],
+            value: { '@path': '/form/city' }, variant: 'mutuallyExclusive',
+          },
+          { id: 'age', component: 'Slider', label: '年龄', min: 0, max: 120, value: { '@path': '/form/age' }, steps: 120 },
+          {
+            id: 'submit', component: 'Button', child: 'submitLabel',
+            action: { event: { name: 'submitForm', context: { name: { '@path': '/form/name' } } } },
+          },
+          { id: 'submitLabel', component: 'Text', text: '提交' },
+        ],
+      },
+    }])
+
+    expect(result).toMatchObject({ isError: false, value: { protocol: 'a2ui/v1' } })
+  })
+
+  it('rejects form controls with missing required fields or out-of-catalog options', async () => {
+    const ctx = await setup()
+    const batches = [
+      [{ id: 'root', component: 'TextField', label: 'x' }],
+      [{ id: 'root', component: 'CheckBox', label: 'x', value: 'yes' }],
+      [{ id: 'root', component: 'Slider', value: 1 }],
+      [{ id: 'root', component: 'Slider', value: 1, max: 10, steps: 0 }],
+      [{
+        id: 'root', component: 'ChoicePicker', label: 'x', value: [],
+        options: [{ label: 'a', value: 'a', extra: true }],
+      }],
+      [{ id: 'root', component: 'TextField', label: 'x', value: 'v', checks: [] }],
+    ]
+    for (const components of batches) {
+      const result = await call(ctx, [{
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'badForm',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components,
+        },
+      }])
+      expect(result.isError).toBe(true)
+    }
+  })
+
+  it('accepts catalog-legal ids with hyphens and rejects over-long ids', async () => {
+    const ctx = await setup()
+    const ok = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'form-1',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body-1' },
+          { id: 'body-1', component: 'Column', children: ['submit-btn'] },
+          {
+            id: 'submit-btn', component: 'Button', child: 'label-1',
+            action: { event: { name: 'submit-form' } },
+          },
+          { id: 'label-1', component: 'Text', text: '提交' },
+        ],
+      },
+    }])
+    expect(ok).toMatchObject({ isError: false })
+
+    const longId = 'x'.repeat(65)
+    const rejected = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'long-id',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: longId, component: 'Text', text: 'x' }],
+      },
+    }])
+    expect(rejected.isError).toBe(true)
+  })
+
   it('rejects a non-object createSurface dataModel', async () => {
     const ctx = await setup()
     const invalid = structuredClone(createSurface)

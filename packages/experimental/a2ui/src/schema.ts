@@ -7,7 +7,8 @@ import {
 } from './types.ts'
 
 const binding = z.strictObject({ '@path': z.string() })
-const componentId = z.string().regex(/^[\p{ID_Start}_][\p{ID_Continue}]*$/u)
+// The catalog admits any string id; bound the length and reject control characters.
+const componentId = z.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u)
 const literalObject = z.record(z.string(), z.json()).refine(value => (
   Object.keys(value).every(key => !/^@(?:[^@]|$)/u.test(key))
 ))
@@ -20,6 +21,9 @@ const event = z.strictObject({
   context: z.record(z.string(), dynamicValue).optional(),
 })
 const dynamicString = z.union([z.string(), binding])
+const dynamicBoolean = z.union([z.boolean(), binding])
+const dynamicNumber = z.union([z.number(), binding])
+const dynamicStringList = z.union([z.array(z.string()), binding])
 const weight = z.number()
 const align = z.enum(['start', 'center', 'end', 'stretch'])
 const justify = z.enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
@@ -60,6 +64,42 @@ const component = z.discriminatedUnion('component', [
     id: componentId,
     component: z.literal('Icon'),
     name: z.string().regex(/^[\p{ID_Start}][\p{ID_Continue}]*$/u),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('TextField'),
+    label: dynamicString,
+    value: dynamicString,
+    placeholder: dynamicString.optional(),
+    variant: z.enum(['longText', 'number', 'shortText', 'obscured']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('CheckBox'),
+    label: dynamicString,
+    value: dynamicBoolean,
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('ChoicePicker'),
+    label: dynamicString,
+    options: z.array(z.strictObject({ label: dynamicString, value: z.string() })).min(1),
+    value: dynamicStringList,
+    variant: z.enum(['multipleSelection', 'mutuallyExclusive']).optional(),
+    displayStyle: z.enum(['checkbox', 'chips']).optional(),
+    weight: weight.optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Slider'),
+    label: dynamicString.optional(),
+    min: z.number().optional(),
+    max: z.number(),
+    value: dynamicNumber,
+    steps: z.number().int().min(1).optional(),
     weight: weight.optional(),
   }),
   z.strictObject({
@@ -119,6 +159,10 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Divider': return []
     case 'Icon': return []
     case 'Image': return []
+    case 'TextField': return []
+    case 'CheckBox': return []
+    case 'ChoicePicker': return []
+    case 'Slider': return []
     case 'Text': return []
   }
 }

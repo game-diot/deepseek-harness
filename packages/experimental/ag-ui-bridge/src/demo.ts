@@ -37,6 +37,14 @@ export function demoPage(runPath: string): string {
   .image.avatar { width: 48px; height: 48px; border-radius: 50%; }
   .image.icon { width: 24px; height: 24px; }
   .icon { font-size: 18px; line-height: 1; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-label { font-size: 12px; opacity: .8; }
+  .control { padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(127,127,127,.45); background: transparent; color: inherit; }
+  .choices { display: flex; flex-wrap: wrap; gap: 10px; }
+  .choice { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+  .slider { display: flex; gap: 8px; align-items: center; }
+  .slider input { flex: 1; }
+  .slider-value { font: 12px/1.4 ui-monospace, monospace; opacity: .8; min-width: 3ch; }
   .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5); cursor: pointer; }
   .fallback { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
   #status { font: 12px/1.4 ui-monospace, monospace; opacity: .75; }
@@ -104,6 +112,58 @@ function dyn(surfaceId, value) {
   return value === undefined || value === null ? '' : String(value);
 }
 
+const overrides = new Map();
+
+function controlKey(surfaceId, id) {
+  return surfaceId + '/' + id;
+}
+
+function setPath(surfaceId, path, value) {
+  const model = dataModels.get(surfaceId) || {};
+  const segments = String(path).split('/').filter(Boolean);
+  let cursor = model;
+  for (const segment of segments.slice(0, -1)) {
+    if (cursor[segment] === null || typeof cursor[segment] !== 'object') cursor[segment] = {};
+    cursor = cursor[segment];
+  }
+  const leaf = segments[segments.length - 1];
+  if (leaf !== undefined) cursor[leaf] = value;
+  dataModels.set(surfaceId, model);
+}
+
+function controlValue(surfaceId, component, fallback) {
+  const key = controlKey(surfaceId, component.id);
+  if (overrides.has(key)) return overrides.get(key);
+  const raw = component.value;
+  if (raw !== null && typeof raw === 'object' && typeof raw['@path'] === 'string') {
+    const resolved = resolvePath(surfaceId, raw['@path']);
+    return resolved === undefined ? fallback : resolved;
+  }
+  return raw === undefined || raw === null ? fallback : raw;
+}
+
+function commitControl(surfaceId, component, value) {
+  overrides.set(controlKey(surfaceId, component.id), value);
+  const raw = component.value;
+  if (raw !== null && typeof raw === 'object' && typeof raw['@path'] === 'string') {
+    setPath(surfaceId, raw['@path'], value);
+  }
+}
+
+function resolveDeep(surfaceId, value) {
+  if (Array.isArray(value)) return value.map(item => resolveDeep(surfaceId, item));
+  if (value !== null && typeof value === 'object') {
+    if (typeof value['@path'] === 'string') {
+      const resolved = resolvePath(surfaceId, value['@path']);
+      return resolved === undefined ? null : resolved;
+    }
+    const out = {};
+    for (const [key, item] of Object.entries(value)) out[key] = resolveDeep(surfaceId, item);
+    return out;
+  }
+  return value;
+}
+
 function newThreadId() {
   return 'demo-' + Math.random().toString(36).slice(2);
 }
@@ -114,6 +174,7 @@ function resetThread() {
   surfaces.clear();
   components.clear();
   dataModels.clear();
+  overrides.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
   document.getElementById('log').textContent = '';
@@ -237,6 +298,98 @@ function renderComponent(surfaceId, id) {
     el.textContent = ICONS[c.name] || '•';
     return el;
   }
+  if (c.component === 'TextField') {
+    const wrap = document.createElement('label');
+    wrap.className = 'field';
+    const label = document.createElement('span');
+    label.className = 'field-label';
+    label.textContent = dyn(surfaceId, c.label);
+    const input = c.variant === 'longText' ? document.createElement('textarea') : document.createElement('input');
+    input.className = 'control';
+    if (c.variant === 'number') input.type = 'number';
+    else if (c.variant === 'obscured') input.type = 'password';
+    else if (c.variant !== 'longText') input.type = 'text';
+    const current = controlValue(surfaceId, c, '');
+    input.value = current === null || current === undefined ? '' : String(current);
+    if (c.placeholder !== undefined) input.placeholder = dyn(surfaceId, c.placeholder);
+    input.addEventListener('input', () => commitControl(surfaceId, c, input.value));
+    wrap.append(label, input);
+    return wrap;
+  }
+  if (c.component === 'CheckBox') {
+    const wrap = document.createElement('label');
+    wrap.className = 'choice';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = Boolean(controlValue(surfaceId, c, false));
+    input.addEventListener('change', () => commitControl(surfaceId, c, input.checked));
+    const text = document.createElement('span');
+    text.textContent = dyn(surfaceId, c.label);
+    wrap.append(input, text);
+    return wrap;
+  }
+  if (c.component === 'ChoicePicker') {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    const label = document.createElement('span');
+    label.className = 'field-label';
+    label.textContent = dyn(surfaceId, c.label);
+    const list = document.createElement('div');
+    list.className = 'choices';
+    const multiple = c.variant === 'multipleSelection';
+    const current = controlValue(surfaceId, c, []);
+    const selected = new Set(Array.isArray(current) ? current.map(String) : []);
+    for (const option of c.options || []) {
+      const row = document.createElement('label');
+      row.className = 'choice';
+      const input = document.createElement('input');
+      input.type = multiple ? 'checkbox' : 'radio';
+      input.name = surfaceId + '-' + c.id;
+      input.checked = selected.has(String(option.value));
+      input.addEventListener('change', () => {
+        if (multiple) {
+          if (input.checked) selected.add(String(option.value));
+          else selected.delete(String(option.value));
+          commitControl(surfaceId, c, [...selected]);
+        } else {
+          commitControl(surfaceId, c, [String(option.value)]);
+        }
+      });
+      const text = document.createElement('span');
+      text.textContent = dyn(surfaceId, option.label);
+      row.append(input, text);
+      list.append(row);
+    }
+    wrap.append(label, list);
+    return wrap;
+  }
+  if (c.component === 'Slider') {
+    const wrap = document.createElement('label');
+    wrap.className = 'field';
+    const label = document.createElement('span');
+    label.className = 'field-label';
+    if (c.label !== undefined) label.textContent = dyn(surfaceId, c.label);
+    const row = document.createElement('div');
+    row.className = 'slider';
+    const input = document.createElement('input');
+    input.type = 'range';
+    const min = c.min === undefined ? 0 : Number(c.min);
+    input.min = String(min);
+    input.max = String(c.max);
+    if (c.steps !== undefined) input.step = String((Number(c.max) - min) / Number(c.steps) || 1);
+    const raw = Number(controlValue(surfaceId, c, min));
+    input.value = String(Number.isFinite(raw) ? raw : min);
+    const out = document.createElement('span');
+    out.className = 'slider-value';
+    out.textContent = input.value;
+    input.addEventListener('input', () => {
+      out.textContent = input.value;
+      commitControl(surfaceId, c, Number(input.value));
+    });
+    row.append(input, out);
+    wrap.append(label, row);
+    return wrap;
+  }
   if (c.component === 'Text') {
     const el = document.createElement('div');
     el.className = 'text' + (c.variant === 'caption' ? ' caption' : '');
@@ -253,7 +406,7 @@ function renderComponent(surfaceId, id) {
         return;
       }
       const action = c.action && c.action.event ? c.action.event : { name: 'unknown' };
-      send('[A2UI action] ' + JSON.stringify({ ...action, surfaceId }))
+      send('[A2UI action] ' + JSON.stringify({ ...resolveDeep(surfaceId, action), surfaceId }))
         .catch(error => bubble('tool', String(error)));
     });
     return el;
@@ -284,6 +437,9 @@ function applyA2ui(payload) {
       const surfaceId = message.deleteSurface.surfaceId;
       surfaces.delete(surfaceId);
       dataModels.delete(surfaceId);
+      for (const key of [...overrides.keys()]) {
+        if (key.startsWith(surfaceId + '/')) overrides.delete(key);
+      }
       for (const key of [...components.keys()]) {
         if (key.startsWith(surfaceId + '/')) components.delete(key);
       }
