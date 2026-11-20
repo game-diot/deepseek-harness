@@ -19,15 +19,20 @@ export function demoPage(runPath: string): string {
   .row { margin: 0 0 10px; }
   .user { font-weight: 600; }
   .assistant { white-space: pre-wrap; }
-  .tool { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
-  #log { font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; opacity: .75; }
+  .tool { font: 12px/1.4 ui-monospace, monospace; opacity: .7; white-space: pre-wrap; }
+  #log { font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; opacity: .75; max-height: 40vh; overflow: auto; }
   form { display: flex; gap: 8px; margin-top: 12px; }
   input { flex: 1; padding: 8px 10px; }
   button { padding: 8px 14px; cursor: pointer; }
+  button:disabled { cursor: progress; opacity: .55; }
   .surface { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .surface-id { font: 11px/1.4 ui-monospace, monospace; opacity: .6; margin-bottom: 8px; }
   .col { display: flex; flex-direction: column; gap: 10px; }
   .text { white-space: pre-wrap; }
   .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5); cursor: pointer; }
+  .fallback { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
+  #status { font: 12px/1.4 ui-monospace, monospace; opacity: .75; }
+  label { font-size: 12px; opacity: .8; display: flex; gap: 6px; align-items: center; }
 </style>
 </head>
 <body>
@@ -35,23 +40,30 @@ export function demoPage(runPath: string): string {
   <h2>AG-UI + A2UI</h2>
   <div id="messages"></div>
   <form id="composer">
-    <input id="prompt" placeholder="Ask for a card, e.g. render a card titled Hello" autocomplete="off">
-    <button type="submit">Send</button>
+    <input id="prompt" placeholder="Ask for a card, e.g. render two cards" autocomplete="off">
+    <button type="submit" id="send">Send</button>
     <button type="button" id="new-thread">New thread</button>
   </form>
+  <p id="status"></p>
 </section>
 <section>
   <h2>Surfaces</h2>
   <div id="surfaces"></div>
   <h2>Raw events</h2>
+  <label><input type="checkbox" id="lifecycle-only"> lifecycle only</label>
   <div id="log"></div>
 </section>
 <script>
 const RUN_PATH = ${JSON.stringify(runPath)};
+const MAX_LOG = 200;
+const NL = String.fromCharCode(10);
+const SEP = NL + NL;
 let threadId = newThreadId();
 let messages = [];
+let busy = false;
 const surfaces = new Map();
 const components = new Map();
+const logLines = [];
 
 function newThreadId() {
   return 'demo-' + Math.random().toString(36).slice(2);
@@ -62,13 +74,38 @@ function resetThread() {
   messages = [];
   surfaces.clear();
   components.clear();
+  logLines.length = 0;
   document.getElementById('messages').textContent = '';
+  document.getElementById('log').textContent = '';
   renderSurfaces();
+  setStatus('new thread: ' + threadId);
 }
+
+function setStatus(text) {
+  document.getElementById('status').textContent = text;
+}
+
+function setBusy(value) {
+  busy = value;
+  document.getElementById('send').disabled = value;
+  document.getElementById('new-thread').disabled = value;
+  if (value) setStatus('running…');
+}
+
 const log = (line) => {
-  const el = document.getElementById('log');
-  el.textContent = line + '\\n' + el.textContent;
+  logLines.unshift(line);
+  if (logLines.length > MAX_LOG) logLines.length = MAX_LOG;
+  renderLog();
 };
+
+function renderLog() {
+  const onlyLifecycle = document.getElementById('lifecycle-only').checked;
+  const visible = onlyLifecycle
+    ? logLines.filter(line => /^(RUN_|CUSTOM|TOOL_CALL_(START|END|RESULT))/.test(line))
+    : logLines;
+  document.getElementById('log').textContent = visible.join(NL);
+}
+
 const bubble = (role, text) => {
   const el = document.createElement('div');
   el.className = 'row ' + role;
@@ -80,10 +117,21 @@ const bubble = (role, text) => {
 function renderSurfaces() {
   const root = document.getElementById('surfaces');
   root.textContent = '';
+  if (surfaces.size === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'fallback';
+    empty.textContent = 'no surfaces yet';
+    root.append(empty);
+    return;
+  }
   for (const [surfaceId, ids] of surfaces) {
     const box = document.createElement('div');
     box.className = 'surface';
     box.dataset.surfaceId = surfaceId;
+    const label = document.createElement('div');
+    label.className = 'surface-id';
+    label.textContent = surfaceId;
+    box.append(label);
     const referenced = new Set();
     for (const id of ids) {
       const c = components.get(surfaceId + '/' + id);
@@ -92,14 +140,21 @@ function renderSurfaces() {
       if (Array.isArray(c.children)) for (const child of c.children) referenced.add(child);
     }
     const rootId = ids.find(id => !referenced.has(id));
-    if (rootId) box.append(renderComponent(surfaceId, rootId));
+    box.append(rootId ? renderComponent(surfaceId, rootId) : fallback('no root component'));
     root.append(box);
   }
 }
 
+function fallback(text) {
+  const el = document.createElement('div');
+  el.className = 'fallback';
+  el.textContent = '[' + text + ']';
+  return el;
+}
+
 function renderComponent(surfaceId, id) {
   const c = components.get(surfaceId + '/' + id);
-  if (!c) return document.createTextNode('[' + id + ' missing]');
+  if (!c) return fallback(id + ' missing');
   if (c.component === 'Card') {
     const el = document.createElement('div');
     if (c.child) el.append(renderComponent(surfaceId, c.child));
@@ -122,14 +177,17 @@ function renderComponent(surfaceId, id) {
     el.className = 'button';
     if (c.child) el.append(renderComponent(surfaceId, c.child));
     el.addEventListener('click', () => {
+      if (busy) {
+        log('ignored: button pressed while a run is in flight');
+        return;
+      }
       const action = c.action && c.action.event ? c.action.event : { name: 'unknown' };
-      send('[A2UI action] ' + JSON.stringify({ ...action, surfaceId }));
+      send('[A2UI action] ' + JSON.stringify({ ...action, surfaceId }))
+        .catch(error => bubble('tool', String(error)));
     });
     return el;
   }
-  const el = document.createElement('div');
-  el.textContent = '[' + String(c.component) + ']';
-  return el;
+  return fallback('unsupported component ' + String(c.component));
 }
 
 function applyA2ui(payload) {
@@ -151,7 +209,11 @@ function applyA2ui(payload) {
       }
     }
     if (message.deleteSurface) {
-      surfaces.delete(message.deleteSurface.surfaceId);
+      const surfaceId = message.deleteSurface.surfaceId;
+      surfaces.delete(surfaceId);
+      for (const key of [...components.keys()]) {
+        if (key.startsWith(surfaceId + '/')) components.delete(key);
+      }
     }
   }
   renderSurfaces();
@@ -161,8 +223,7 @@ function handleEvent(event) {
   log(event.type + (event.name ? ' ' + event.name : ''));
   switch (event.type) {
     case 'TEXT_MESSAGE_START': {
-      const message = { id: event.messageId, role: 'assistant', content: '' };
-      messages.push(message);
+      messages.push({ id: event.messageId, role: 'assistant', content: '' });
       bubble('assistant', '');
       return;
     }
@@ -200,6 +261,7 @@ function handleEvent(event) {
     }
     case 'CUSTOM': {
       if (event.name === 'a2ui') applyA2ui(event.value || {});
+      else log('unhandled custom event: ' + String(event.name));
       return;
     }
     case 'RUN_ERROR': {
@@ -211,8 +273,23 @@ function handleEvent(event) {
   }
 }
 
-async function send(text, retried = false) {
+async function send(text) {
   if (!text.trim()) return;
+  if (busy) {
+    log('ignored: a run is already in flight');
+    return;
+  }
+  setBusy(true);
+  setStatus('running… (' + threadId + ')');
+  try {
+    await runOnce(text, false);
+  } finally {
+    setBusy(false);
+    setStatus('idle (' + threadId + ')');
+  }
+}
+
+async function runOnce(text, retried) {
   messages.push({ id: 'user-' + Math.random().toString(36).slice(2), role: 'user', content: text });
   bubble('user', text);
   const response = await fetch(RUN_PATH, {
@@ -233,8 +310,9 @@ async function send(text, retried = false) {
     const detail = (await response.text()).slice(0, 300);
     // A retired Thread cannot be resumed; start a clean one and replay this message once.
     if (!retried && detail.includes('DSH_AG_UI_HISTORY_UNUSABLE')) {
+      log('thread retired; starting a new one');
       resetThread();
-      return send(text, true);
+      return runOnce(text, true);
     }
     bubble('tool', 'HTTP ' + response.status + ' ' + detail);
     return;
@@ -246,15 +324,15 @@ async function send(text, retried = false) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    let split = buffer.indexOf('\\n\\n');
+    let split = buffer.indexOf(SEP);
     while (split !== -1) {
       const chunk = buffer.slice(0, split);
       buffer = buffer.slice(split + 2);
-      for (const line of chunk.split('\\n')) {
+      for (const line of chunk.split(NL)) {
         if (!line.startsWith('data: ')) continue;
         try { handleEvent(JSON.parse(line.slice(6))); } catch { /* keep the stream alive */ }
       }
-      split = buffer.indexOf('\\n\\n');
+      split = buffer.indexOf(SEP);
     }
   }
 }
@@ -266,7 +344,17 @@ document.getElementById('composer').addEventListener('submit', (event) => {
   input.value = '';
   send(text).catch(error => bubble('tool', String(error)));
 });
-document.getElementById('new-thread').addEventListener('click', resetThread);
+document.getElementById('new-thread').addEventListener('click', () => {
+  if (busy) {
+    log('ignored: cannot reset while a run is in flight');
+    return;
+  }
+  resetThread();
+});
+document.getElementById('lifecycle-only').addEventListener('change', renderLog);
+
+renderSurfaces();
+setStatus('idle (' + threadId + ')');
 </script>
 </body>
 </html>`
