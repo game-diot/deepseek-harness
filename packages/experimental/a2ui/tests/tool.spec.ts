@@ -26,12 +26,13 @@ async function setupDirect() {
   return ctx
 }
 
-function call(ctx: Context, messages: unknown[]) {
+function call(ctx: Context, messages: unknown[], agent?: { session: object }) {
   return executeToolFixture(ctx, {
     signal,
     callId: brandString<ToolCallId>(`a2ui-${++callNumber}`),
     name: 'a2ui_render',
     arguments: { messages },
+    ...agent === undefined ? {} : { agent: agent as never },
   })
 }
 
@@ -499,6 +500,42 @@ describe('a2ui_render', () => {
       }])
       expect(result.isError).toBe(true)
     }
+  })
+
+  it('admits incremental messages for a surface this session created earlier', async () => {
+    const ctx = await setup()
+    const agent = { session: {} }
+    const created = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'incremental',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['head'] },
+          { id: 'head', component: 'Text', text: '版本 1' },
+        ],
+      },
+    }], agent)
+    expect(created.isError).toBe(false)
+
+    const updated = await call(ctx, [
+      { version: '1.0', updateComponents: { surfaceId: 'incremental', components: [{ id: 'head', component: 'Text', text: '版本 2' }] } },
+      { version: '1.0', updateDataModel: { surfaceId: 'incremental', path: '/status', value: 'ready' } },
+    ], agent)
+    expect(updated).toMatchObject({ isError: false })
+
+    const withoutSession = await call(ctx, [
+      { version: '1.0', updateComponents: { surfaceId: 'incremental', components: [{ id: 'head', component: 'Text', text: '版本 3' }] } },
+    ])
+    expect(withoutSession.isError).toBe(true)
+
+    const deleted = await call(ctx, [{ version: '1.0', deleteSurface: { surfaceId: 'incremental' } }], agent)
+    expect(deleted.isError).toBe(false)
+    const afterDelete = await call(ctx, [
+      { version: '1.0', updateDataModel: { surfaceId: 'incremental', path: '/status', value: 'gone' } },
+    ], agent)
+    expect(afterDelete.isError).toBe(true)
   })
 
   it('rejects a non-object createSurface dataModel', async () => {

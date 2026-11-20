@@ -258,7 +258,14 @@ function componentMap(surfaceId: string, components: readonly ParsedComponent[])
   return result
 }
 
-function validateComponentGraph(value: ParsedEnvelope): void {
+/**
+ * Validate the component graph across the messages of one call.
+ * @param value - the parsed envelope.
+ * @param known - surfaces this session created in earlier calls; when a message
+ *   targets one of them, only its component shapes are checked because this call
+ *   holds no graph for that surface.
+ */
+function validateComponentGraph(value: ParsedEnvelope, known?: Set<string>): void {
   const surfaces = new Map<string, Map<string, ParsedComponent>>()
   for (const messageValue of value.messages) {
     if ('createSurface' in messageValue) {
@@ -267,17 +274,28 @@ function validateComponentGraph(value: ParsedEnvelope): void {
       const graph = componentMap(surfaceId, components)
       validateSurfaceGraph(surfaceId, graph)
       surfaces.set(surfaceId, graph)
+      known?.add(surfaceId)
     } else if ('updateComponents' in messageValue) {
       const { surfaceId, components } = messageValue.updateComponents
       const graph = surfaces.get(surfaceId)
-      if (graph === undefined) throw new Error(`updateComponents references unknown surface "${surfaceId}"`)
+      if (graph === undefined) {
+        if (known === undefined || !known.has(surfaceId)) {
+          throw new Error(`updateComponents references unknown surface "${surfaceId}"`)
+        }
+        componentMap(surfaceId, components)
+        continue
+      }
       const updates = componentMap(surfaceId, components)
       for (const [id, item] of updates) graph.set(id, item)
       validateSurfaceGraph(surfaceId, graph)
     } else if ('deleteSurface' in messageValue) {
       surfaces.delete(messageValue.deleteSurface.surfaceId)
-    } else if ('updateDataModel' in messageValue && !surfaces.has(messageValue.updateDataModel.surfaceId)) {
-      throw new Error(`updateDataModel references unknown surface "${messageValue.updateDataModel.surfaceId}"`)
+      known?.delete(messageValue.deleteSurface.surfaceId)
+    } else if ('updateDataModel' in messageValue) {
+      const { surfaceId } = messageValue.updateDataModel
+      if (!surfaces.has(surfaceId) && (known === undefined || !known.has(surfaceId))) {
+        throw new Error(`updateDataModel references unknown surface "${surfaceId}"`)
+      }
     }
   }
 }
@@ -285,15 +303,17 @@ function validateComponentGraph(value: ParsedEnvelope): void {
 /**
  * Validate and detach model-authored A2UI messages.
  * @param messages - untrusted messages admitted by the tool argument schema.
+ * @param known - surfaces this session created in earlier calls; required for
+ *   incremental messages whose surface is not created in the same call.
  * @returns the canonical envelope and its validated component count.
  * @throws a ZodError when a message or component is outside the admitted subset.
  */
-export function parseA2uiEnvelope(messages: unknown): {
+export function parseA2uiEnvelope(messages: unknown, known?: Set<string>): {
   envelope: { protocol: string; messages: JsonValue[] }
   componentCount: number
 } {
   const value = envelope.parse({ protocol: A2UI_META_PROTOCOL, messages })
-  validateComponentGraph(value)
+  validateComponentGraph(value, known)
   const canonical = {
     protocol: value.protocol,
     messages: value.messages.map((messageValue) => {

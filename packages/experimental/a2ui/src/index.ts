@@ -69,9 +69,13 @@ const OUTPUT_SCHEMA = {
   },
 }
 
+/** Surface ids one Session may keep for incremental messages. */
+const MAX_REMEMBERED_SURFACES = 32
+
 /** Register the `a2ui_render` tool for this plugin's lifetime. */
 export function apply(ctx: Context, config: Config): void {
   const limits = resolveConfig(config)
+  const knownSurfaces = new WeakMap<object, Set<string>>()
   ctx.tools.register(defineTool({
     name: 'a2ui_render',
     description: 'Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible conversation renderer. When a user message starts with `[A2UI action]`, read its JSON and call this tool again with a complete successor Surface when the action changes visible state; do not rewrite the historical Surface.',
@@ -91,9 +95,23 @@ export function apply(ctx: Context, config: Config): void {
       }],
       presentationMeta: (_args, value) => value,
     },
-    execute: (args) => {
+    execute: (args, exec) => {
       try {
-        const parsed = parseA2uiEnvelope(args.messages)
+        const session = exec.agent === undefined ? undefined : exec.agent.session
+        let known: Set<string> | undefined
+        if (session !== undefined) {
+          known = knownSurfaces.get(session)
+          if (known === undefined) {
+            known = new Set<string>()
+            knownSurfaces.set(session, known)
+          }
+          while (known.size >= MAX_REMEMBERED_SURFACES) {
+            const oldest = known.values().next()
+            if (oldest.done === true) break
+            known.delete(oldest.value)
+          }
+        }
+        const parsed = parseA2uiEnvelope(args.messages, known)
         enforceLimits(parsed, limits)
         return Promise.resolve(parsed.envelope)
       } catch (error) {

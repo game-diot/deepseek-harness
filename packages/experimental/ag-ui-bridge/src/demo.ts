@@ -26,6 +26,10 @@ export function demoPage(runPath: string): string {
   button { padding: 8px 14px; cursor: pointer; }
   button:disabled { cursor: progress; opacity: .55; }
   .surface { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  @keyframes a2ui-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes a2ui-flash { from { background: rgba(90,150,255,.35); } to { background: transparent; } }
+  .surface .enter { animation: a2ui-enter .3s ease; }
+  .surface .flash { animation: a2ui-flash .8s ease; }
   .surface-id { font: 11px/1.4 ui-monospace, monospace; opacity: .6; margin-bottom: 8px; }
   .col { display: flex; flex-direction: column; gap: 10px; }
   .row { display: flex; flex-direction: row; gap: 10px; align-items: center; }
@@ -90,6 +94,8 @@ let busy = false;
 const surfaces = new Map();
 const components = new Map();
 const dataModels = new Map();
+const surfaceBoxes = new Map();
+const signatureCache = new Map();
 const logLines = [];
 
 const JUSTIFY = {
@@ -226,6 +232,8 @@ function resetThread() {
   surfaces.clear();
   components.clear();
   dataModels.clear();
+  surfaceBoxes.clear();
+  signatureCache.clear();
   overrides.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
@@ -267,34 +275,138 @@ const bubble = (role, text) => {
   return el;
 };
 
+function componentSignature(c) {
+  const parts = [];
+  for (const key of Object.keys(c).sort()) {
+    if (key === 'value' || key === 'checks') continue;
+    parts.push(key + '=' + JSON.stringify(c[key]));
+  }
+  return parts.join('&');
+}
+
+function pulse(el, name) {
+  el.classList.remove(name);
+  void el.offsetWidth;
+  el.classList.add(name);
+  el.addEventListener('animationend', () => el.classList.remove(name), { once: true });
+}
+
+function reconcileNode(oldEl, newEl) {
+  if (!oldEl || oldEl.dataset.kind !== newEl.dataset.kind) return newEl;
+  oldEl.className = newEl.className;
+  const style = newEl.getAttribute('style');
+  if (style === null) oldEl.removeAttribute('style');
+  else oldEl.setAttribute('style', style);
+  const newChildren = [...newEl.children];
+  if (newChildren.length === 0) {
+    for (const attr of ['type', 'min', 'max', 'step', 'placeholder', 'poster', 'src']) {
+      const value = newEl.getAttribute(attr);
+      if (value === null) oldEl.removeAttribute(attr);
+      else if (oldEl.getAttribute(attr) !== value) oldEl.setAttribute(attr, value);
+    }
+    if (oldEl.innerHTML !== newEl.innerHTML) oldEl.innerHTML = newEl.innerHTML;
+    return oldEl;
+  }
+  const oldByCid = new Map();
+  const anonymousOld = [];
+  for (const child of [...oldEl.children]) {
+    if (child.dataset && child.dataset.cid !== undefined) oldByCid.set(child.dataset.cid, child);
+    else anonymousOld.push(child);
+  }
+  const used = new Set();
+  let anonymousIndex = 0;
+  for (const newChild of newChildren) {
+    const cid = newChild.dataset ? newChild.dataset.cid : undefined;
+    let target = newChild;
+    if (cid !== undefined && oldByCid.has(cid)) {
+      target = reconcileNode(oldByCid.get(cid), newChild);
+      used.add(cid);
+    } else if (cid === undefined && anonymousIndex < anonymousOld.length) {
+      target = reconcileNode(anonymousOld[anonymousIndex], newChild);
+      anonymousIndex += 1;
+    } else {
+      target.dataset.fresh = '1';
+    }
+    oldEl.append(target);
+  }
+  for (const child of anonymousOld.slice(anonymousIndex)) child.remove();
+  for (const [cid, child] of oldByCid) {
+    if (!used.has(cid)) child.remove();
+  }
+  return oldEl;
+}
+
 function renderSurfaces() {
   const root = document.getElementById('surfaces');
-  root.textContent = '';
   if (surfaces.size === 0) {
+    root.textContent = '';
+    surfaceBoxes.clear();
+    signatureCache.clear();
     const empty = document.createElement('div');
     empty.className = 'fallback';
     empty.textContent = 'no surfaces yet';
     root.append(empty);
     return;
   }
+  const empty = root.querySelector('.fallback');
+  if (empty) empty.remove();
+  const live = new Set();
   for (const [surfaceId, ids] of surfaces) {
-    const box = document.createElement('div');
-    box.className = 'surface';
-    box.dataset.surfaceId = surfaceId;
-    const label = document.createElement('div');
-    label.className = 'surface-id';
-    label.textContent = surfaceId;
-    box.append(label);
+    live.add(surfaceId);
+    let box = surfaceBoxes.get(surfaceId);
+    if (box === undefined) {
+      box = document.createElement('div');
+      box.className = 'surface';
+      box.dataset.surfaceId = surfaceId;
+      const label = document.createElement('div');
+      label.className = 'surface-id';
+      label.textContent = surfaceId;
+      box.append(label);
+      surfaceBoxes.set(surfaceId, box);
+    }
+    const signatures = new Map();
     const referenced = new Set();
     for (const id of ids) {
       const c = components.get(surfaceId + '/' + id);
       if (!c) continue;
+      signatures.set(id, componentSignature(c));
       if (typeof c.child === 'string') referenced.add(c.child);
       if (Array.isArray(c.children)) for (const child of c.children) referenced.add(child);
+      if (Array.isArray(c.tabs)) for (const tab of c.tabs) referenced.add(tab.child);
+      if (typeof c.trigger === 'string') referenced.add(c.trigger);
+      if (typeof c.content === 'string') referenced.add(c.content);
     }
     const rootId = ids.find(id => !referenced.has(id));
-    box.append(rootId ? renderComponent(surfaceId, rootId) : fallback('no root component'));
+    const next = rootId ? renderComponent(surfaceId, rootId) : fallback('no root component');
+    const previousCard = box.querySelector(':scope > [data-cid]');
+    if (previousCard === null) {
+      next.dataset.fresh = '1';
+      box.append(next);
+    } else {
+      const card = reconcileNode(previousCard, next);
+      if (card !== previousCard) previousCard.replaceWith(card);
+    }
+    const previous = signatureCache.get(surfaceId);
+    const nodesById = new Map();
+    for (const el of box.querySelectorAll('[data-cid]')) nodesById.set(el.dataset.cid, el);
+    for (const [cid, signature] of signatures) {
+      const el = nodesById.get(cid);
+      if (el === undefined) continue;
+      if (el.dataset.fresh === '1') {
+        delete el.dataset.fresh;
+        pulse(el, 'enter');
+      } else if (previous !== undefined && previous.get(cid) !== signature) {
+        pulse(el, 'flash');
+      }
+    }
+    signatureCache.set(surfaceId, signatures);
     root.append(box);
+  }
+  for (const [surfaceId, box] of [...surfaceBoxes]) {
+    if (live.has(surfaceId)) continue;
+    box.remove();
+    surfaceBoxes.delete(surfaceId);
+    signatureCache.delete(surfaceId);
   }
 }
 
@@ -306,6 +418,16 @@ function fallback(text) {
 }
 
 function renderComponent(surfaceId, id) {
+  const el = buildComponent(surfaceId, id);
+  const c = components.get(surfaceId + '/' + id);
+  if (c) {
+    el.dataset.cid = c.id;
+    el.dataset.kind = c.component;
+  }
+  return el;
+}
+
+function buildComponent(surfaceId, id) {
   const c = components.get(surfaceId + '/' + id);
   if (!c) return fallback(id + ' missing');
   if (c.component === 'Card') {
@@ -588,6 +710,12 @@ function applyA2ui(payload) {
       const surfaceId = message.deleteSurface.surfaceId;
       surfaces.delete(surfaceId);
       dataModels.delete(surfaceId);
+      signatureCache.delete(surfaceId);
+      const box = surfaceBoxes.get(surfaceId);
+      if (box !== undefined) {
+        box.remove();
+        surfaceBoxes.delete(surfaceId);
+      }
       for (const key of [...overrides.keys()]) {
         if (key.startsWith(surfaceId + '/')) overrides.delete(key);
       }
