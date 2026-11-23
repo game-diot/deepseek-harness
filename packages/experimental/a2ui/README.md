@@ -89,7 +89,9 @@ Append-only; each result follows the reusable request prefix.
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Separate Client renderer** — this Host package persists metadata; the optional `dsh-client-ui-a2ui` package renders it.
-- **Restricted protocol subset** — every Basic Catalog v1.0 component is admitted with its catalog fields and data-model bindings. Renderer-side `checks`, data-driven `ChildList` templates, and AG-UI state snapshots/deltas stay deferred; arbitrary CSS, inline HTML, and animation are deliberately outside the catalog, whose styling surface is limited to `variant`, `weight`, `justify`, `align`, `fit`, `axis`, and `direction`.
+- **Restricted protocol subset** — every Basic Catalog v1.0 component is admitted with its catalog fields and data-model bindings, including data-driven `ChildList` templates. Renderer-side `checks` and AG-UI state snapshots/deltas stay deferred; arbitrary CSS, inline HTML, and animation are deliberately outside the catalog, whose styling surface is limited to `variant`, `weight`, `justify`, `align`, `fit`, `axis`, and `direction`.
+- **Template bindings are relative** — inside a `ChildList` template the renderer resolves bindings against the data-model item, so an absolute path renders empty; the Host rejects it instead of shipping a silent blank cell.
+
 - **Message-based action return** — the optional Client submits bounded structured actions through native user messages; no dedicated Session event exists yet.
 - **Inline Markdown only** — the renderers support `strong`, `emphasis`, and `code` spans plus line breaks; HTML, images, and links stay literal text, matching the catalog's stated Markdown limits.
 - **Surface theme tokens** — `createSurface.metadata.extensions.dsh_theme` carries closed `tone` (`neutral`/`info`/`success`/`warning`/`danger`), `density` (`compact`/`comfortable`/`spacious`), and `textScale` (`sm`/`md`/`lg`) tokens, which renderers map onto catalog spacing, type, and accent values. Free-form colours, sizes, and CSS stay rejected.

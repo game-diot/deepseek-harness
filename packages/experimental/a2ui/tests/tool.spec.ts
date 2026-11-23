@@ -530,6 +530,111 @@ describe('a2ui_render', () => {
     }
   })
 
+  it('admits a ChildList template that renders one component per data entry', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'templated',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { rows: [{ label: '第一行' }, { label: '第二行' }] },
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: { componentId: 'row', path: '/rows' } },
+          { id: 'row', component: 'Text', text: { '@path': 'label' } },
+        ],
+      },
+    }])
+    expect(result).toMatchObject({ isError: false })
+  })
+
+  it('rejects a ChildList template with an unknown component or extra fields', async () => {
+    const ctx = await setup()
+    const build = (children: unknown) => ({
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'badTemplate',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children },
+        ],
+      },
+    })
+    const batches = [
+      { componentId: 'missingRow', path: '/rows' },
+      { componentId: 'body', path: '/rows', extra: true },
+      { componentId: 'body', path: '' },
+    ]
+    for (const children of batches) {
+      expect((await call(ctx, [build(children)])).isError).toBe(true)
+    }
+  })
+
+  it('rejects an absolute binding inside a ChildList template', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'absoluteTemplate',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { rows: [{ label: '第一行' }] },
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: { componentId: 'row', path: '/rows' } },
+          { id: 'row', component: 'Text', text: { '@path': '/label' } },
+        ],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('relative to the item')
+  })
+
+  it('admits relative bindings nested in a template array field', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'relativeNestedTemplate',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { rows: [{ title: '第一页' }] },
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: { componentId: 'rowTabs', path: '/rows' } },
+          {
+            id: 'rowTabs', component: 'Tabs',
+            tabs: [{ title: { '@path': 'title' }, child: 'pane' }],
+          },
+          { id: 'pane', component: 'Text', text: '内容' },
+        ],
+      },
+    }])
+    expect(result).toMatchObject({ isError: false })
+  })
+
+  it('rejects an absolute binding nested in a template array field', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'nestedTemplate',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { rows: [{ title: '第一页' }] },
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: { componentId: 'rowTabs', path: '/rows' } },
+          {
+            id: 'rowTabs', component: 'Tabs',
+            tabs: [{ title: { '@path': '/title' }, child: 'pane' }],
+          },
+          { id: 'pane', component: 'Text', text: '内容' },
+        ],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('relative to the item')
+  })
+
   it('evicts the oldest remembered surface beyond the per-Session bound', async () => {
     const ctx = await setup()
     const agent = { session: {} }

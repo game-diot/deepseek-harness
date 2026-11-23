@@ -102,6 +102,7 @@ const dataModels = new Map();
 const surfaceBoxes = new Map();
 const signatureCache = new Map();
 const themes = new Map();
+const scopedBases = new Map();
 const logLines = [];
 
 const JUSTIFY = {
@@ -121,7 +122,8 @@ const ICONS = {
 };
 
 function resolvePath(surfaceId, path) {
-  let cur = dataModels.get(surfaceId) || {};
+  const owner = String(path).startsWith('/') ? scopedBases.get(surfaceId) : undefined;
+  let cur = owner === undefined ? (dataModels.get(surfaceId) || {}) : owner;
   for (const segment of String(path).split('/').filter(Boolean)) {
     if (cur === null || typeof cur !== 'object') return undefined;
     cur = cur[segment];
@@ -231,6 +233,41 @@ function renderMarkdown(text) {
   return fragment;
 }
 
+function baseSurfaceId(surfaceId) {
+  const cut = surfaceId.indexOf('#');
+  return cut === -1 ? surfaceId : surfaceId.slice(0, cut);
+}
+
+function componentFor(surfaceId, id) {
+  const own = components.get(surfaceId + '/' + id);
+  if (own !== undefined) return own;
+  const base = baseSurfaceId(surfaceId);
+  return base === surfaceId ? undefined : components.get(base + '/' + id);
+}
+
+function bindTemplateItems(surfaceId, children) {
+  const items = resolvePath(surfaceId, children.path);
+  if (!Array.isArray(items)) return [];
+  const owner = dataModels.get(baseSurfaceId(surfaceId)) || {};
+  return items.map((item, index) => {
+    const scoped = surfaceId + '#' + children.componentId + ':' + index;
+    dataModels.set(scoped, item);
+    scopedBases.set(scoped, owner);
+    return scoped;
+  });
+}
+
+function renderChildren(el, surfaceId, children) {
+  if (Array.isArray(children)) {
+    for (const child of children) el.append(renderComponent(surfaceId, child));
+    return;
+  }
+  if (children === undefined || children === null) return;
+  for (const scoped of bindTemplateItems(surfaceId, children)) {
+    el.append(renderComponent(scoped, children.componentId));
+  }
+}
+
 function newThreadId() {
   return 'demo-' + Math.random().toString(36).slice(2);
 }
@@ -244,6 +281,7 @@ function resetThread() {
   surfaceBoxes.clear();
   signatureCache.clear();
   themes.clear();
+  scopedBases.clear();
   overrides.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
@@ -395,6 +433,7 @@ function renderSurfaces() {
       signatures.set(id, componentSignature(c));
       if (typeof c.child === 'string') referenced.add(c.child);
       if (Array.isArray(c.children)) for (const child of c.children) referenced.add(child);
+      else if (c.children !== undefined && c.children !== null) referenced.add(c.children.componentId);
       if (Array.isArray(c.tabs)) for (const tab of c.tabs) referenced.add(tab.child);
       if (typeof c.trigger === 'string') referenced.add(c.trigger);
       if (typeof c.content === 'string') referenced.add(c.content);
@@ -442,16 +481,17 @@ function fallback(text) {
 
 function renderComponent(surfaceId, id) {
   const el = buildComponent(surfaceId, id);
-  const c = components.get(surfaceId + '/' + id);
+  const c = componentFor(surfaceId, id);
   if (c) {
-    el.dataset.cid = c.id;
+    const base = baseSurfaceId(surfaceId);
+    el.dataset.cid = base === surfaceId ? c.id : c.id + surfaceId.slice(base.length);
     el.dataset.kind = c.component;
   }
   return el;
 }
 
 function buildComponent(surfaceId, id) {
-  const c = components.get(surfaceId + '/' + id);
+  const c = componentFor(surfaceId, id);
   if (!c) return fallback(id + ' missing');
   if (c.component === 'Card') {
     const el = document.createElement('div');
@@ -464,7 +504,7 @@ function buildComponent(surfaceId, id) {
     el.className = 'col';
     if (c.justify) el.style.justifyContent = JUSTIFY[c.justify] || 'flex-start';
     if (c.align) el.style.alignItems = ALIGN[c.align] || 'stretch';
-    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    renderChildren(el, surfaceId, c.children);
     return el;
   }
   if (c.component === 'Row') {
@@ -472,7 +512,7 @@ function buildComponent(surfaceId, id) {
     el.className = 'row';
     if (c.justify) el.style.justifyContent = JUSTIFY[c.justify] || 'flex-start';
     if (c.align) el.style.alignItems = ALIGN[c.align] || 'center';
-    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    renderChildren(el, surfaceId, c.children);
     return el;
   }
   if (c.component === 'Divider') {
@@ -592,7 +632,7 @@ function buildComponent(surfaceId, id) {
     const el = document.createElement('div');
     el.className = 'list ' + (c.direction === 'horizontal' ? 'horizontal' : 'vertical');
     if (c.align) el.style.alignItems = ALIGN[c.align] || 'stretch';
-    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    renderChildren(el, surfaceId, c.children);
     return el;
   }
   if (c.component === 'Tabs') {
@@ -737,6 +777,12 @@ function applyA2ui(payload) {
       const surfaceId = message.deleteSurface.surfaceId;
       surfaces.delete(surfaceId);
       dataModels.delete(surfaceId);
+      for (const key of [...dataModels.keys()]) {
+        if (key.startsWith(surfaceId + '#')) dataModels.delete(key);
+      }
+      for (const key of [...scopedBases.keys()]) {
+        if (key.startsWith(surfaceId + '#')) scopedBases.delete(key);
+      }
       themes.delete(surfaceId);
       signatureCache.delete(surfaceId);
       const box = surfaceBoxes.get(surfaceId);
@@ -753,8 +799,12 @@ function applyA2ui(payload) {
     }
     if (message.updateDataModel) {
       const update = message.updateDataModel;
-      const model = dataModels.get(update.surfaceId) || {};
       const segments = String(update.path).split('/').filter(Boolean);
+      if (segments.length === 0) {
+        dataModels.set(update.surfaceId, update.value === null || typeof update.value !== 'object' ? {} : update.value);
+        continue;
+      }
+      const model = dataModels.get(update.surfaceId) || {};
       let cursor = model;
       for (const segment of segments.slice(0, -1)) {
         if (cursor[segment] === null || typeof cursor[segment] !== 'object') cursor[segment] = {};

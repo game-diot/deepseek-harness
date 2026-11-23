@@ -9,6 +9,15 @@ import {
 const binding = z.strictObject({ '@path': z.string() })
 // The catalog admits any string id; bound the length and reject control characters.
 const componentId = z.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u)
+
+/**
+ * Catalog `ChildList`: static child ids, or a template component rendered once per
+ * data-model entry at `path`.
+ */
+const childList = z.union([
+  z.array(componentId),
+  z.strictObject({ componentId, path: z.string().min(1) }),
+])
 const literalObject = z.record(z.string(), z.json()).refine(value => (
   Object.keys(value).every(key => !/^@(?:[^@]|$)/u.test(key))
 ))
@@ -32,7 +41,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Column'),
-    children: z.array(componentId),
+    children: childList,
     justify: justify.optional(),
     align: align.optional(),
     weight: weight.optional(),
@@ -40,7 +49,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Row'),
-    children: z.array(componentId),
+    children: childList,
     justify: justify.optional(),
     align: align.optional(),
     weight: weight.optional(),
@@ -105,7 +114,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('List'),
-    children: z.array(componentId),
+    children: childList,
     direction: z.enum(['vertical', 'horizontal']).optional(),
     align: align.optional(),
     weight: weight.optional(),
@@ -211,12 +220,17 @@ const envelope = z.strictObject({
 
 type ParsedEnvelope = z.infer<typeof envelope>
 type ParsedComponent = z.infer<typeof component>
+type ParsedChildList = z.infer<typeof childList>
+
+function childIds(children: ParsedChildList): readonly string[] {
+  return Array.isArray(children) ? children : [children.componentId]
+}
 
 function referencedIds(value: ParsedComponent): readonly string[] {
   switch (value.component) {
     case 'Card': return [value.child]
-    case 'Column': return value.children
-    case 'Row': return value.children
+    case 'Column': return childIds(value.children)
+    case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
     case 'Divider': return []
     case 'Icon': return []
@@ -225,13 +239,56 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'CheckBox': return []
     case 'ChoicePicker': return []
     case 'Slider': return []
-    case 'List': return value.children
+    case 'List': return childIds(value.children)
     case 'Tabs': return value.tabs.map(tab => tab.child)
     case 'Modal': return [value.trigger, value.content]
     case 'DateTimeInput': return []
     case 'Video': return []
     case 'AudioPlayer': return []
     case 'Text': return []
+  }
+}
+
+function collectBindingPaths(value: unknown, visit: (path: string) => void): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectBindingPaths(item, visit)
+    return
+  }
+  if (typeof value !== 'object' || value === null) return
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === '@path' && typeof entry === 'string') {
+      visit(entry)
+      continue
+    }
+    collectBindingPaths(entry, visit)
+  }
+}
+
+/**
+ * Reject absolute bindings inside a template: the renderer resolves them against the
+ * Surface data model rather than the item, which silently renders empty values.
+ */
+function assertTemplateBindingsRelative(
+  surfaceId: string,
+  components: ReadonlyMap<string, ParsedComponent>,
+): void {
+  const queue: string[] = []
+  for (const component of components.values()) {
+    if ('children' in component && !Array.isArray(component.children)) queue.push(component.children.componentId)
+  }
+  while (queue.length > 0) {
+    const id = queue.pop()
+    /* v8 ignore next -- the loop condition proves an id is present. */
+    if (id === undefined) break
+    const item = components.get(id)
+    /* v8 ignore next -- the traversal above rejects a missing component before this walk. */
+    if (item === undefined) continue
+    collectBindingPaths(item, (path) => {
+      if (path.startsWith('/')) {
+        throw new Error(`surface "${surfaceId}" template component "${id}" binds "${path}"; bindings inside a ChildList template are relative to the item`)
+      }
+    })
+    queue.push(...referencedIds(item))
   }
 }
 
@@ -263,6 +320,7 @@ function validateSurfaceGraph(surfaceId: string, components: ReadonlyMap<string,
     if (orphan === undefined) throw new Error('unreachable component is missing')
     throw new Error(`surface "${surfaceId}" contains unreachable component "${orphan}"`)
   }
+  assertTemplateBindingsRelative(surfaceId, components)
 }
 
 function componentMap(surfaceId: string, components: readonly ParsedComponent[]): Map<string, ParsedComponent> {

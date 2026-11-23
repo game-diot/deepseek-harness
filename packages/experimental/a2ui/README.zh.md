@@ -89,7 +89,9 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - **独立 Client 渲染器**——本 Host 包持久化元数据；可选 `dsh-client-ui-a2ui` 包负责渲染。
-- **受限协议子集**——Basic Catalog v1.0 的全部组件及其目录字段与数据模型绑定均已准入。渲染器 `checks`、数据驱动 `ChildList` 模板与 AG-UI 状态快照/增量仍延期；任意 CSS、内嵌 HTML 与动画按设计不在目录内，目录的样式面只有 `variant`、`weight`、`justify`、`align`、`fit`、`axis`、`direction`。
+- **受限协议子集**——Basic Catalog v1.0 的全部组件及其目录字段与数据模型绑定均已准入，包含数据驱动的 `ChildList` 模板。渲染器 `checks` 与 AG-UI 状态快照/增量仍延期；任意 CSS、内嵌 HTML 与动画按设计不在目录内，目录的样式面只有 `variant`、`weight`、`justify`、`align`、`fit`、`axis`、`direction`。
+- **模板内绑定为相对路径**——`ChildList` 模板中渲染器按数据项解析绑定，绝对路径会渲染为空；Host 直接拒绝，而不是产出静默空白格。
+
 - **基于消息的 Action 回传**——可选 Client 通过原生用户消息提交有界结构化 Action；目前没有专用 Session 事件。
 - **仅内联 Markdown**——渲染器支持 `strong`、`emphasis`、`code` 与换行；HTML、图片与链接保持字面文本，与目录声明的 Markdown 限制一致。
 - **Surface 主题 token**——`createSurface.metadata.extensions.dsh_theme` 携带封闭的 `tone`（`neutral`/`info`/`success`/`warning`/`danger`）、`density`（`compact`/`comfortable`/`spacious`）与 `textScale`（`sm`/`md`/`lg`）token，渲染器把它们映射到目录的间距、字号与强调色。自由颜色、尺寸与 CSS 仍被拒绝。
