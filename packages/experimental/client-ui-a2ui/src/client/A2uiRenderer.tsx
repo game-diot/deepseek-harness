@@ -15,6 +15,10 @@ interface RendererCopy {
   readonly loading?: string
   readonly renderFailed: string
   readonly actionUnavailable: string
+  /** Copy for an action that needs explicit confirmation before it is submitted. */
+  readonly confirmRequired: string
+  readonly confirm: string
+  readonly cancel: string
 }
 
 interface A2uiRendererProps {
@@ -50,12 +54,18 @@ function acquireStyles(): () => void {
  */
 export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
   const [actionNotice, setActionNotice] = useState<string>()
+  const [pendingAction, setPendingAction] = useState<ActionPayload>()
+  const approval = new Set(metadata.approval ?? [])
   const onActionRef = useRef(onAction)
   onActionRef.current = onAction
   const [state, setState] = useState<RendererState>()
   useInsertionEffect(() => acquireStyles(), [])
   useEffect(() => {
     const processor = new MessageProcessor<ReactCatalogComponent>([basicCatalog], (action) => {
+      if (approval.has(action.name)) {
+        setPendingAction(action)
+        return
+      }
       const handler = onActionRef.current
       if (handler !== undefined && handler(action)) {
         setActionNotice(undefined)
@@ -83,6 +93,20 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
         {state.surfaces.map(surface => surface === undefined ? null : <A2uiSurface key={surface.id} surface={surface} />)}
       </MarkdownComponentContext.Provider>
     </div>
+    {pendingAction !== undefined && <div role="group" className={css.notice}>
+      <span>{copy.confirmRequired}</span>
+      <button type="button" onClick={() => {
+        const action = pendingAction
+        setPendingAction(undefined)
+        const handler = onActionRef.current
+        if (handler !== undefined && handler(action)) {
+          setActionNotice(undefined)
+          return
+        }
+        setActionNotice(copy.actionUnavailable)
+      }}>{copy.confirm}</button>
+      <button type="button" onClick={() => { setPendingAction(undefined) }}>{copy.cancel}</button>
+    </div>}
     {actionNotice !== undefined && <div role="status" className={css.notice}>{actionNotice}</div>}
   </div>
 }

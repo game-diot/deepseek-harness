@@ -45,6 +45,9 @@ const metadata: A2uiClientEnvelope = {
 const copy = {
   renderFailed: 'This A2UI result cannot be rendered.',
   actionUnavailable: 'This action is not connected to the Agent yet.',
+  confirmRequired: 'This action needs your confirmation.',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
 }
 
 afterEach(() => {
@@ -78,6 +81,25 @@ describe('A2UI lazy renderer', () => {
 
     view.unmount()
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('confirms a gated action before forwarding it', async () => {
+    const onAction = vi.fn(() => true)
+    const { A2uiRenderer } = await import('../src/client/A2uiRenderer.tsx')
+    const gated = { ...metadata, approval: ['confirm'] }
+    const view = render(<A2uiRenderer metadata={gated} copy={copy} onAction={onAction} />)
+
+    fireEvent.click(view.getByRole('button', { name: 'card' }))
+    expect(onAction).not.toHaveBeenCalled()
+    expect(view.getByText(copy.confirmRequired)).toBeTruthy()
+
+    fireEvent.click(view.getByRole('button', { name: copy.cancel }))
+    expect(onAction).not.toHaveBeenCalled()
+    expect(view.queryByText(copy.confirmRequired)).toBeNull()
+
+    fireEvent.click(view.getByRole('button', { name: 'card' }))
+    fireEvent.click(view.getByRole('button', { name: copy.confirm }))
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ userMessage: 'Confirm the task' }))
   })
 
   it('forwards a standard action to an admitted Turn-tail handler', async () => {

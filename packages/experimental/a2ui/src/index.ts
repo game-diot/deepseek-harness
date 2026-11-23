@@ -26,6 +26,11 @@ export interface Config {
    * cannot be rendered from scratch.
    */
   allowIncremental?: boolean
+  /**
+   * Button action names that a renderer must confirm before submitting.
+   * Matched names are recorded in the Tool result metadata as `approval`.
+   */
+  approvalActions?: string[]
 }
 
 /** Loader configuration schema for A2UI resource bounds. */
@@ -34,6 +39,7 @@ export const Config: z<Config> = z.object({
   maxComponents: z.number().step(1).min(1).default(100),
   maxBytes: z.number().step(1).min(1).default(65_536),
   allowIncremental: z.boolean().default(false),
+  approvalActions: z.array(z.string()).default([]),
 })
 
 interface ResolvedConfig {
@@ -41,6 +47,7 @@ interface ResolvedConfig {
   readonly maxComponents: number
   readonly maxBytes: number
   readonly allowIncremental: boolean
+  readonly approvalActions: readonly string[]
 }
 
 function resolveConfig(config: Config): ResolvedConfig {
@@ -49,6 +56,7 @@ function resolveConfig(config: Config): ResolvedConfig {
     maxComponents: config.maxComponents ?? 100,
     maxBytes: config.maxBytes ?? 65_536,
     allowIncremental: config.allowIncremental ?? false,
+    approvalActions: config.approvalActions ?? [],
   }
 }
 
@@ -75,7 +83,41 @@ const OUTPUT_SCHEMA = {
   properties: {
     protocol: { type: 'string' as const, const: A2UI_META_PROTOCOL, required: true as const },
     messages: { type: 'array' as const, items: { type: 'json' as const }, required: true as const },
+    approval: { type: 'array' as const, items: { type: 'string' as const } },
   },
+}
+
+/**
+ * Names of Button actions in this batch that the deployment requires confirming.
+ * @param envelope - validated canonical messages.
+ * @param guarded - configured action names that need confirmation.
+ * @returns the matching action names, in first-seen order.
+ */
+function approvalNames(
+  envelope: { readonly messages: readonly unknown[] },
+  guarded: readonly string[],
+): string[] {
+  if (guarded.length === 0) return []
+  const found = new Set<string>()
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item)
+      return
+    }
+    if (typeof value !== 'object' || value === null) return
+    const record = value as Record<string, unknown>
+    const event = record.action
+    if (typeof event === 'object' && event !== null) {
+      const name = (event as Record<string, unknown>).event
+      if (typeof name === 'object' && name !== null) {
+        const candidate = (name as Record<string, unknown>).name
+        if (typeof candidate === 'string' && guarded.includes(candidate)) found.add(candidate)
+      }
+    }
+    for (const item of Object.values(record)) walk(item)
+  }
+  walk(envelope.messages)
+  return [...found]
 }
 
 /** Surface ids one Session may keep for incremental messages. */
@@ -121,7 +163,8 @@ export function apply(ctx: Context, config: Config): void {
         }
         const parsed = parseA2uiEnvelope(args.messages, known)
         enforceLimits(parsed, limits)
-        return Promise.resolve(parsed.envelope)
+        const approval = approvalNames(parsed.envelope, limits.approvalActions)
+        return Promise.resolve(approval.length === 0 ? parsed.envelope : { ...parsed.envelope, approval })
       } catch (error) {
         if (error instanceof ToolArgsError) throw error
         /* v8 ignore next -- Zod and this package's graph checks throw Error instances. */

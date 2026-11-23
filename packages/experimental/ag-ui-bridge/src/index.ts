@@ -109,11 +109,20 @@ function toolResultText(content: readonly { readonly type: string; readonly text
 }
 
 /** A2UI messages carried by one durable Tool result, when it speaks the A2UI protocol. */
-function a2uiPayload(meta: unknown): { readonly protocol: 'a2ui/v1'; readonly messages: readonly unknown[] } | null {
+function a2uiPayload(meta: unknown): {
+  readonly protocol: 'a2ui/v1'
+  readonly messages: readonly unknown[]
+  readonly approval?: readonly string[]
+} | null {
   if (typeof meta !== 'object' || meta === null) return null
-  const candidate = meta as { protocol?: unknown; messages?: unknown }
+  const candidate = meta as { protocol?: unknown; messages?: unknown; approval?: unknown }
   if (candidate.protocol !== 'a2ui/v1' || !Array.isArray(candidate.messages)) return null
-  return { protocol: 'a2ui/v1', messages: candidate.messages }
+  const approval = Array.isArray(candidate.approval)
+    ? candidate.approval.filter((entry): entry is string => typeof entry === 'string')
+    : []
+  return approval.length === 0
+    ? { protocol: 'a2ui/v1', messages: candidate.messages }
+    : { protocol: 'a2ui/v1', messages: candidate.messages, approval }
 }
 
 function attributedPrompt(peer: PeerScope, threadId: string, runId: string, text: string): string {

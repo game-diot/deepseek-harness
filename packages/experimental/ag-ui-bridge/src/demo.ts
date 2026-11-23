@@ -531,6 +531,7 @@ function evaluateCheck(surfaceId, node) {
 }
 
 const checkTargets = new Map();
+const guardedActions = new Set();
 
 function failedCheckMessages(surfaceId, checks) {
   const messages = [];
@@ -823,8 +824,35 @@ function buildComponent(surfaceId, id) {
         return;
       }
       const action = c.action && c.action.event ? c.action.event : { name: 'unknown' };
-      send('[A2UI action] ' + JSON.stringify({ ...resolveDeep(surfaceId, action), surfaceId }))
+      const submit = () => send('[A2UI action] ' + JSON.stringify({ ...resolveDeep(surfaceId, action), surfaceId }))
         .catch(error => bubble('tool', String(error)));
+      if (!guardedActions.has(action.name)) {
+        submit();
+        return;
+      }
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      const panel = document.createElement('div');
+      panel.className = 'modal-panel';
+      const question = document.createElement('div');
+      question.textContent = '该操作需要确认：' + action.name;
+      const row = document.createElement('div');
+      row.className = 'row';
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.className = 'button';
+      confirm.textContent = '确认';
+      confirm.addEventListener('click', () => { backdrop.remove(); submit(); });
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'button';
+      cancel.textContent = '取消';
+      cancel.addEventListener('click', () => backdrop.remove());
+      row.append(confirm, cancel);
+      panel.append(question, row);
+      backdrop.append(panel);
+      backdrop.addEventListener('click', event => { if (event.target === backdrop) backdrop.remove(); });
+      document.body.append(backdrop);
     });
     return el;
   }
@@ -832,6 +860,7 @@ function buildComponent(surfaceId, id) {
 }
 
 function applyA2ui(payload) {
+  for (const name of payload.approval || []) guardedActions.add(name);
   for (const message of payload.messages || []) {
     if (message.createSurface) {
       const surface = message.createSurface;

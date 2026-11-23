@@ -635,6 +635,33 @@ describe('a2ui_render', () => {
     expect(resultText(result)).toContain('relative to the item')
   })
 
+  it('records approval-gated action names in the tool metadata', async () => {
+    const build = (name: string) => ({
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'guarded',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'btn' },
+          { id: 'btn', component: 'Button', child: 'label', action: { event: { name } } },
+          { id: 'label', component: 'Text', text: 'Go' },
+        ],
+      },
+    })
+
+    const guarded = await setup({ approvalActions: ['submitForm'] })
+    const matched = await call(guarded, [build('submitForm')])
+    expect(matched).toMatchObject({ isError: false, meta: { approval: ['submitForm'] } })
+
+    const unmatched = await call(guarded, [build('goNext')])
+    expect(unmatched).toMatchObject({ isError: false })
+    expect((unmatched as { meta?: unknown }).meta).not.toMatchObject({ approval: ['goNext'] })
+
+    const plain = await setup()
+    const none = await call(plain, [build('submitForm')])
+    expect((none as { meta?: { approval?: unknown } }).meta?.approval).toBeUndefined()
+  })
+
   it('admits catalog check rules on a checkable component', async () => {
     const ctx = await setup()
     const result = await call(ctx, [{
