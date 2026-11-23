@@ -691,6 +691,129 @@ describe('AG-UI bridge route', () => {
     await fixture.fiber.dispose()
   })
 
+  it('pauses the run on an approval and continues it from a resume', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+
+    const approval = (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', {
+      agent: created.agent, toolName: 'write_file', callId: 'call-1', reason: 'needs permission',
+    }, () => Promise.resolve('unavailable'))
+
+    const paused = await run
+    expect(paused.body).toContain('"type":"interrupt"')
+    expect(paused.body).toContain('needs permission')
+    expect(paused.body).toContain('write_file')
+
+    const interruptId = /"interrupts":\[\{"id":"([^"]+)"/.exec(paused.body)?.[1]
+    expect(interruptId).toBeDefined()
+
+    const invalidAnswer = await post(fixture.route(), {
+      ...input(),
+      runId: 'run-bad',
+      resume: [{ interruptId: interruptId as string, status: 'resolved', payload: { outcome: 'maybe' } }],
+    })
+    expect(invalidAnswer.status).toBe(400)
+    expect(invalidAnswer.body).toContain('DSH_AG_UI_INVALID_REQUEST')
+
+    const resumed = post(fixture.route(), {
+      ...input(),
+      runId: 'run-2',
+      resume: [{
+        interruptId: interruptId as string,
+        status: 'resolved',
+        payload: { outcome: 'allowed-once' },
+      }],
+    })
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await expect(approval).resolves.toBe('allowed-once')
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const finished = await resumed
+    expect(finished.body).toContain('RUN_STARTED')
+    expect(finished.body).toContain('RUN_FINISHED')
+    await fixture.fiber.dispose()
+  })
+
+  it('rejects a normal run and an unknown resume while an interrupt is pending', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    const approval = (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', {
+      agent: created.agent, toolName: 'write_file',
+    }, () => Promise.resolve('unavailable'))
+    await run
+
+    const blocked = await post(fixture.route(), { ...input(), runId: 'run-2' })
+    expect(blocked.status).toBe(409)
+    expect(blocked.body).toContain('DSH_AG_UI_INTERRUPT_PENDING')
+
+    const unknown = await post(fixture.route(), {
+      ...input(),
+      runId: 'run-3',
+      resume: [{ interruptId: 'not-a-real-id', status: 'resolved', payload: { outcome: 'rejected' } }],
+    })
+    expect(unknown.status).toBe(400)
+    expect(unknown.body).toContain('DSH_AG_UI_UNKNOWN_INTERRUPT')
+
+    // Leave no pending approval behind for teardown.
+    const expired = await Promise.race([approval, new Promise(resolve => setTimeout(() => { resolve('pending') }, 50))])
+    expect(expired).toBe('pending')
+    await fixture.fiber.dispose()
+  })
+
+  it('cancels a pending interrupt after its timeout and retires the thread', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true, interruptTimeoutMs: 1000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    const approval = (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', { agent: created.agent, toolName: 'write_file' }, () => Promise.resolve('unavailable'))
+    await run
+    await expect(approval).resolves.toBe('cancelled')
+
+    const after = await post(fixture.route(), { ...input(), runId: 'run-2' })
+    expect(after.status).toBe(409)
+    expect(after.body).toContain('DSH_AG_UI_HISTORY_UNUSABLE')
+    await fixture.fiber.dispose()
+  }, 10_000)
+
+  it('ignores approvals that belong to an Agent this bridge does not own', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true })
+    await fixture.fiber.await()
+    const outsider = handle(fixture.ctx, 'pending')
+    const outcome = await (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', {
+      agent: outsider.agent, toolName: 'write_file',
+    }, () => Promise.resolve('unavailable'))
+    expect(outcome).toBe('unavailable')
+    await fixture.fiber.dispose()
+  })
+
   it('skips the a2ui custom event when the tool result metadata is malformed', async () => {
     const fixture = setup({ maxBodyBytes: 10_000 })
     const created = handle(fixture.ctx, 'pending')

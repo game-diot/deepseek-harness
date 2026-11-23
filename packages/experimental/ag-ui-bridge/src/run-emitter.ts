@@ -28,6 +28,25 @@ export class AgUiRunEmitter {
   }
 
   /**
+   * End the Run with an interrupt outcome while leaving the Agent's Turn open.
+   * @param interrupts - questions the client answers on a later Run.
+   * @returns whether the interrupt was published.
+   */
+  interrupt(interrupts: readonly unknown[]): boolean {
+    /* v8 ignore next -- an approval never reaches a Run that already ended. */
+    if (this.terminal) return false
+    this.closeResources()
+    this.terminal = true
+    this.emit({
+      type: EventType.RUN_FINISHED,
+      threadId: this.identity.threadId,
+      runId: this.identity.runId,
+      outcome: { type: 'interrupt', interrupts },
+    } as Event)
+    return true
+  }
+
+  /**
    * Translate one live assistant frame.
    * @param frame - the assistant stream frame to translate.
    */
