@@ -20,6 +20,12 @@ export interface Config {
   maxComponents?: number
   /** Maximum UTF-8 bytes in the canonical envelope. */
   maxBytes?: number
+  /**
+   * Accept incremental messages that target a Surface created in an earlier call.
+   * Leave false when a renderer holds no cross-turn Surface state: such an envelope
+   * cannot be rendered from scratch.
+   */
+  allowIncremental?: boolean
 }
 
 /** Loader configuration schema for A2UI resource bounds. */
@@ -27,12 +33,14 @@ export const Config: z<Config> = z.object({
   maxMessages: z.number().step(1).min(1).default(8),
   maxComponents: z.number().step(1).min(1).default(100),
   maxBytes: z.number().step(1).min(1).default(65_536),
+  allowIncremental: z.boolean().default(false),
 })
 
 interface ResolvedConfig {
   readonly maxMessages: number
   readonly maxComponents: number
   readonly maxBytes: number
+  readonly allowIncremental: boolean
 }
 
 function resolveConfig(config: Config): ResolvedConfig {
@@ -40,6 +48,7 @@ function resolveConfig(config: Config): ResolvedConfig {
     maxMessages: config.maxMessages ?? 8,
     maxComponents: config.maxComponents ?? 100,
     maxBytes: config.maxBytes ?? 65_536,
+    allowIncremental: config.allowIncremental ?? false,
   }
 }
 
@@ -97,7 +106,7 @@ export function apply(ctx: Context, config: Config): void {
     },
     execute: (args, exec) => {
       try {
-        const session = exec.agent === undefined ? undefined : exec.agent.session
+        const session = limits.allowIncremental && exec.agent !== undefined ? exec.agent.session : undefined
         let known: Set<string> | undefined
         if (session !== undefined) {
           known = knownSurfaces.get(session)

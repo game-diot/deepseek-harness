@@ -354,7 +354,7 @@ function validateComponentGraph(value: ParsedEnvelope, known?: Set<string>): voi
       const graph = surfaces.get(surfaceId)
       if (graph === undefined) {
         if (known === undefined || !known.has(surfaceId)) {
-          throw new Error(`updateComponents references unknown surface "${surfaceId}"`)
+          throw new Error(`updateComponents references surface "${surfaceId}" that this call does not create; send a complete createSurface instead`)
         }
         componentMap(surfaceId, components)
         continue
@@ -368,7 +368,7 @@ function validateComponentGraph(value: ParsedEnvelope, known?: Set<string>): voi
     } else {
       const { surfaceId } = messageValue.updateDataModel
       if (!surfaces.has(surfaceId) && (known === undefined || !known.has(surfaceId))) {
-        throw new Error(`updateDataModel references unknown surface "${surfaceId}"`)
+        throw new Error(`updateDataModel references surface "${surfaceId}" that this call does not create; send a complete createSurface instead`)
       }
     }
   }

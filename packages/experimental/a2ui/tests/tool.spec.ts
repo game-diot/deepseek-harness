@@ -636,7 +636,7 @@ describe('a2ui_render', () => {
   })
 
   it('evicts the oldest remembered surface beyond the per-Session bound', async () => {
-    const ctx = await setup()
+    const ctx = await setup({ allowIncremental: true })
     const agent = { session: {} }
     const surface = (index: number) => ({
       version: '1.0',
@@ -670,8 +670,28 @@ describe('a2ui_render', () => {
     expect(result.isError).toBe(true)
   })
 
-  it('admits incremental messages for a surface this session created earlier', async () => {
+  it('rejects a cross-call incremental message unless the deployment opts in', async () => {
     const ctx = await setup()
+    const agent = { session: {} }
+    const created = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'defaultIncremental',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: 'root', component: 'Text', text: 'v1' }],
+      },
+    }], agent)
+    expect(created.isError).toBe(false)
+
+    const update = await call(ctx, [
+      { version: '1.0', updateDataModel: { surfaceId: 'defaultIncremental', path: '/x', value: 1 } },
+    ], agent)
+    expect(update.isError).toBe(true)
+    expect(resultText(update)).toContain('send a complete createSurface instead')
+  })
+
+  it('admits incremental messages for a surface this session created earlier', async () => {
+    const ctx = await setup({ allowIncremental: true })
     const agent = { session: {} }
     const created = await call(ctx, [{
       version: '1.0',
