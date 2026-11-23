@@ -15,6 +15,8 @@ interface RendererCopy {
   readonly loading?: string
   readonly renderFailed: string
   readonly actionUnavailable: string
+  /** Shown when a result only updates a Surface this renderer never created. */
+  readonly incrementalUnavailable: string
   /** Copy for an action that needs explicit confirmation before it is submitted. */
   readonly confirmRequired: string
   readonly confirm: string
@@ -59,8 +61,10 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
   const onActionRef = useRef(onAction)
   onActionRef.current = onAction
   const [state, setState] = useState<RendererState>()
+  const incrementalOnly = !metadata.messages.some(message => 'createSurface' in message)
   useInsertionEffect(() => acquireStyles(), [])
   useEffect(() => {
+    if (incrementalOnly) return
     const processor = new MessageProcessor<ReactCatalogComponent>([basicCatalog], (action) => {
       if (approval.has(action.name)) {
         setPendingAction(action)
@@ -80,8 +84,9 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
       setState({ processor, surfaces: [], error: true })
     }
     return () => { processor.dispose() }
-  }, [metadata.messages])
+  }, [metadata.messages, incrementalOnly])
 
+  if (incrementalOnly) return <div role="alert" className={css.error}>{copy.incrementalUnavailable}</div>
   if (state === undefined) return <div className={css.root}>{copy.loading ?? ''}</div>
   if (state.error) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
   if (state.surfaces.length === 0) return <div role="alert" className={css.error}>{copy.renderFailed}</div>

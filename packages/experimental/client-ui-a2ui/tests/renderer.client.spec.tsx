@@ -45,6 +45,7 @@ const metadata: A2uiClientEnvelope = {
 const copy = {
   renderFailed: 'This A2UI result cannot be rendered.',
   actionUnavailable: 'This action is not connected to the Agent yet.',
+  incrementalUnavailable: 'This result only updates an existing Surface.',
   confirmRequired: 'This action needs your confirmation.',
   confirm: 'Confirm',
   cancel: 'Cancel',
@@ -81,6 +82,16 @@ describe('A2UI lazy renderer', () => {
 
     view.unmount()
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('explains a result that only updates an existing Surface', async () => {
+    const { A2uiRenderer } = await import('../src/client/A2uiRenderer.tsx')
+    const incremental = {
+      protocol: 'a2ui/v1' as const,
+      messages: [{ version: '1.0' as const, updateComponents: { surfaceId: 'card', components: [] } }],
+    }
+    const view = render(<A2uiRenderer metadata={incremental} copy={copy} />)
+    expect(view.getByRole('alert').textContent).toBe(copy.incrementalUnavailable)
   })
 
   it('confirms a gated action before forwarding it', async () => {
