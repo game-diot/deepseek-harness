@@ -30,6 +30,50 @@ interface A2uiRendererProps {
   readonly onAction?: (action: ActionPayload) => boolean
 }
 
+/** Variant an earlier schema admitted for `Image`, which the renderer rejects. */
+const LEGACY_IMAGE_VARIANT = 'hero'
+
+function isLegacyImage(component: unknown): boolean {
+  if (typeof component !== 'object' || component === null) return false
+  const record = component as { component?: unknown; variant?: unknown }
+  return record.component === 'Image' && record.variant === LEGACY_IMAGE_VARIANT
+}
+
+function repairBatch(batch: { readonly components?: readonly unknown[] } | undefined): unknown[] | undefined {
+  if (batch === undefined || !Array.isArray(batch.components)) return undefined
+  const components: readonly unknown[] = batch.components
+  if (!components.some(isLegacyImage)) return undefined
+  const repaired: unknown[] = components.map(component => (
+    isLegacyImage(component)
+      ? { ...(component as Record<string, unknown>), variant: 'header' }
+      : component
+  ))
+  return repaired
+}
+
+/**
+ * Repair data written by an earlier schema that admitted `hero` for `Image.variant`,
+ * which the renderer rejects, so historical cards keep rendering.
+ * @param messages - persisted messages about to be validated.
+ * @returns the messages with recovered variants.
+ */
+function recoverLegacyVariants(messages: A2uiClientEnvelope['messages']): A2uiClientEnvelope['messages'] {
+  return messages.map((message) => {
+    const record = message as {
+      readonly createSurface?: { readonly components?: readonly unknown[] }
+      readonly updateComponents?: { readonly components?: readonly unknown[] }
+    }
+    const surface = repairBatch(record.createSurface)
+    const batch = repairBatch(record.updateComponents)
+    if (surface === undefined && batch === undefined) return message
+    return {
+      ...message,
+      ...surface === undefined ? {} : { createSurface: { ...record.createSurface, components: surface } },
+      ...batch === undefined ? {} : { updateComponents: { ...record.updateComponents, components: batch } },
+    } as A2uiClientEnvelope['messages'][number]
+  })
+}
+
 interface RendererState {
   readonly processor: MessageProcessor<ReactCatalogComponent>
   readonly surfaces: ReturnType<MessageProcessor<ReactCatalogComponent>['getSurface']>[]
@@ -78,7 +122,7 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
       setActionNotice(copy.actionUnavailable)
     }, { validationConfig: STRICT_VALIDATION })
     try {
-      processor.processMessages(metadata.messages as ProcessableMessagePayload)
+      processor.processMessages(recoverLegacyVariants(metadata.messages) as ProcessableMessagePayload)
       setState({ processor, surfaces: [...processor.getSurfaces().values()], error: false })
     } catch {
       setState({ processor, surfaces: [], error: true })

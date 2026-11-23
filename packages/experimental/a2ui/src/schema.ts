@@ -111,7 +111,7 @@ const component = z.discriminatedUnion('component', [
     url: dynamicString,
     description: dynamicString.optional(),
     fit: z.enum(['contain', 'cover', 'fill', 'none', 'scaleDown']).optional(),
-    variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'hero']).optional(),
+    variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header']).optional(),
     weight: weight.optional(),
   }),
   z.strictObject({

@@ -84,6 +84,23 @@ describe('A2UI lazy renderer', () => {
     expect(dispose).toHaveBeenCalledOnce()
   })
 
+  it('recovers a legacy Image variant the renderer rejects', async () => {
+    const { A2uiRenderer } = await import('../src/client/A2uiRenderer.tsx')
+    const legacy = {
+      protocol: 'a2ui/v1' as const,
+      messages: [{
+        version: '1.0' as const,
+        createSurface: {
+          surfaceId: 'legacy-hero',
+          components: [{ id: 'root', component: 'Image', url: 'https://example.com/x.png', variant: 'hero' }],
+        },
+      }],
+    }
+    const { container } = render(<A2uiRenderer metadata={legacy} copy={copy} />)
+    // The SDK rejects `hero`, so a rendered surface proves the variant was recovered.
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
   it('explains a result that only updates an existing Surface', async () => {
     const { A2uiRenderer } = await import('../src/client/A2uiRenderer.tsx')
     const incremental = {
