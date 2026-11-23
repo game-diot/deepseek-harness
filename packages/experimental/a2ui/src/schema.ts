@@ -273,7 +273,8 @@ type ParsedEnvelope = z.infer<typeof envelope>
 type ParsedComponent = z.infer<typeof component>
 type ParsedChildList = z.infer<typeof childList>
 
-function childIds(children: ParsedChildList): readonly string[] {
+function childIds(children: ParsedChildList | undefined): readonly string[] {
+  if (children === undefined) return []
   return Array.isArray(children) ? children : [children.componentId]
 }
 
@@ -341,6 +342,55 @@ function assertTemplateBindingsRelative(
     })
     queue.push(...referencedIds(item))
   }
+}
+
+/**
+ * Drop components that no path reaches from `root`.
+ * A composed Surface merges older and newer components, so replaced branches can
+ * leave orphans that renderers reject.
+ * @param components - the merged component list in insertion order.
+ * @returns the reachable components in the original order.
+ */
+export function keepReachableFromRoot(components: readonly unknown[]): unknown[] {
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const component of components) {
+    if (typeof component !== 'object' || component === null) continue
+    const id = (component as Record<string, unknown>).id
+    if (typeof id === 'string') byId.set(id, component as Record<string, unknown>)
+  }
+  if (!byId.has('root')) return [...components]
+  const reachable = new Set<string>()
+  const queue = ['root']
+  while (queue.length > 0) {
+    const id = queue.pop()
+    /* v8 ignore next -- the loop condition proves an id is present. */
+    if (id === undefined || reachable.has(id)) continue
+    reachable.add(id)
+    const component = byId.get(id)
+    /* v8 ignore next -- only ids recorded from this map enter the queue. */
+    if (component === undefined) continue
+    for (const reference of childIds(component.children as ParsedChildList | undefined)) {
+      queue.push(reference)
+    }
+    for (const key of ['child', 'trigger', 'content'] as const) {
+      const value = component[key]
+      if (typeof value === 'string') queue.push(value)
+    }
+    const tabs = component.tabs
+    if (Array.isArray(tabs)) {
+      for (const tab of tabs) {
+        if (typeof tab === 'object' && tab !== null) {
+          const child = (tab as { child?: unknown }).child
+          if (typeof child === 'string') queue.push(child)
+        }
+      }
+    }
+  }
+  return components.filter(component => (
+    typeof component === 'object' && component !== null
+    && typeof (component as { id?: unknown }).id === 'string'
+    && reachable.has((component as { id: string }).id)
+  ))
 }
 
 function validateSurfaceGraph(surfaceId: string, components: ReadonlyMap<string, ParsedComponent>): void {

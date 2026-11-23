@@ -6,6 +6,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { describe, expect, it } from 'vitest'
 import * as A2ui from '../src/index.ts'
+import { keepReachableFromRoot } from '../src/schema.ts'
 
 const signal = new AbortController().signal
 let callNumber = 0
@@ -34,6 +35,15 @@ function call(ctx: Context, messages: unknown[], agent?: { session: object }) {
     arguments: { messages },
     ...agent === undefined ? {} : { agent: agent as never },
   })
+}
+
+type ToolMessage = {
+  createSurface?: { components: { id: string; text?: string }[]; dataModel?: Record<string, unknown>; metadata?: unknown }
+  deleteSurface?: { surfaceId: string }
+}
+
+function toolMessages(result: { readonly value?: { readonly messages: ToolMessage[] } }): ToolMessage[] {
+  return result.value?.messages ?? []
 }
 
 function resultText(result: { content: readonly { type: string; text?: string }[] }): string {
@@ -766,6 +776,187 @@ describe('a2ui_render', () => {
       { version: '1.0', updateDataModel: { surfaceId: 'unknown', path: '/x', value: 1 } },
     ])
     expect(result.isError).toBe(true)
+  })
+
+  it('composes a complete successor Surface for incremental messages', async () => {
+    const ctx = await setup({ allowIncremental: true })
+    const agent = { session: {} }
+    const created = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'composed',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { form: { name: '旧' } },
+        metadata: { extensions: { dsh_theme: { tone: 'info' } } },
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['head'] },
+          { id: 'head', component: 'Text', text: '版本 1' },
+        ],
+      },
+    }], agent)
+    expect(created.isError).toBe(false)
+
+    const updated = await call(ctx, [
+      { version: '1.0', updateComponents: { surfaceId: 'composed', components: [{ id: 'head', component: 'Text', text: '版本 2' }] } },
+      { version: '1.0', updateDataModel: { surfaceId: 'composed', path: '/form/name', value: '新' } },
+    ], agent)
+
+    expect(updated.isError).toBe(false)
+    const messages = toolMessages(updated)
+    expect(messages).toHaveLength(1)
+    const surface = messages[0]?.createSurface
+    expect(surface?.components.find(component => component.id === 'head')?.text).toBe('版本 2')
+    expect(surface?.dataModel?.form?.name).toBe('新')
+    expect(surface?.metadata).toMatchObject({ extensions: { dsh_theme: { tone: 'info' } } })
+  })
+
+  it('leaves a component list without a root untouched when pruning', () => {
+    const entries: unknown[] = [
+      'not-a-component',
+      { component: 'Text', text: 'id-less' },
+      { id: 'a', component: 'Tabs', tabs: ['not-a-tab', { title: 'no-child' }] },
+    ]
+    expect(keepReachableFromRoot(entries)).toEqual(entries)
+    const oddTabs = [{ id: 'root', component: 'Tabs', tabs: ['not-a-tab', { title: 'no-child' }] }]
+    expect(keepReachableFromRoot(oddTabs)).toEqual(oddTabs)
+  })
+
+  it('drops components the composed Surface no longer reaches', async () => {
+    const ctx = await setup({ allowIncremental: true })
+    const agent = { session: {} }
+    await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'pruned',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['first'] },
+          { id: 'first', component: 'Text', text: '第一' },
+        ],
+      },
+    }], agent)
+
+    const updated = await call(ctx, [
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'pruned',
+          components: [
+            { id: 'body', component: 'Column', children: ['second'] },
+            { id: 'second', component: 'Text', text: '第二' },
+          ],
+        },
+      },
+    ], agent)
+
+    const surface = toolMessages(updated)[0]?.createSurface
+    expect(surface?.components.map(component => component.id)).toEqual(['root', 'body', 'second'])
+  })
+
+  it('keeps modal and tab children reachable when composing', async () => {
+    const ctx = await setup({ allowIncremental: true })
+    const agent = { session: {} }
+    await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'branches',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['tabs', 'modal'] },
+          {
+            id: 'tabs', component: 'Tabs',
+            tabs: [{ title: 'A', child: 'paneA' }, { title: 'B', child: 'paneB' }],
+          },
+          { id: 'paneA', component: 'Text', text: 'A' },
+          { id: 'paneB', component: 'Text', text: 'B' },
+          { id: 'modal', component: 'Modal', trigger: 'openText', content: 'modalText' },
+          { id: 'openText', component: 'Text', text: '打开' },
+          { id: 'modalText', component: 'Text', text: '内容' },
+        ],
+      },
+    }], agent)
+
+    const updated = await call(ctx, [
+      { version: '1.0', updateComponents: { surfaceId: 'branches', components: [{ id: 'paneB', component: 'Text', text: 'B2' }] } },
+    ], agent)
+
+    const ids = toolMessages(updated)[0]?.createSurface?.components.map(component => component.id) ?? []
+    expect(ids).toEqual(['root', 'body', 'tabs', 'paneA', 'paneB', 'modal', 'openText', 'modalText'])
+  })
+
+  it('composes one Surface when a call creates and then updates it', async () => {
+    const ctx = await setup({ allowIncremental: true })
+    const agent = { session: {} }
+    const result = await call(ctx, [
+      {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 'inline',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+          components: [
+            { id: 'root', component: 'Card', child: 'body' },
+            { id: 'body', component: 'Column', children: ['head'] },
+            { id: 'head', component: 'Text', text: '第一版' },
+          ],
+        },
+      },
+      { version: '1.0', updateComponents: { surfaceId: 'inline', components: [{ id: 'head', component: 'Text', text: '第二版' }] } },
+    ], agent)
+
+    const messages = toolMessages(result)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.createSurface?.components.find(component => component.id === 'head')?.text).toBe('第二版')
+  })
+
+  it('composes root and nested data-model updates', async () => {
+    const ctx = await setup({ allowIncremental: true })
+    const agent = { session: {} }
+    await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'modeled',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { form: 'scalar' },
+        components: [{ id: 'root', component: 'Text', text: 'x' }],
+      },
+    }], agent)
+
+    const replaced = await call(ctx, [
+      { version: '1.0', updateDataModel: { surfaceId: 'modeled', path: '', value: { rows: [1, 2] } } },
+      { version: '1.0', updateDataModel: { surfaceId: 'modeled', path: '/nested/deep/value', value: 7 } },
+    ], agent)
+
+    const messages = toolMessages(replaced)
+    const model = messages[0]?.createSurface?.dataModel as
+      { rows?: number[]; nested?: { deep?: { value?: number } } } | undefined
+    expect(model?.rows).toEqual([1, 2])
+    expect(model?.nested?.deep?.value).toBe(7)
+  })
+
+  it('composes a deletion and forgets the Surface', async () => {
+    const ctx = await setup({ allowIncremental: true })
+    const agent = { session: {} }
+    await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'gone',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: 'root', component: 'Text', text: 'x' }],
+      },
+    }], agent)
+
+    const deleted = await call(ctx, [{ version: '1.0', deleteSurface: { surfaceId: 'gone' } }], agent)
+    expect(deleted).toMatchObject({ isError: false })
+    const messages = toolMessages(deleted)
+    expect(messages[0]?.deleteSurface).toEqual({ surfaceId: 'gone' })
+
+    const after = await call(ctx, [
+      { version: '1.0', updateComponents: { surfaceId: 'gone', components: [{ id: 'root', component: 'Text', text: 'y' }] } },
+    ], agent)
+    expect(after.isError).toBe(true)
   })
 
   it('rejects a cross-call incremental message unless the deployment opts in', async () => {

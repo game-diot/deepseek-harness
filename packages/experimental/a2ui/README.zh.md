@@ -97,7 +97,7 @@ kind: "package-reference"
 - **仅内联 Markdown**——渲染器支持 `strong`、`emphasis`、`code` 与换行；HTML、图片与链接保持字面文本，与目录声明的 Markdown 限制一致。
 - **Surface 主题 token**——`createSurface.metadata.extensions.dsh_theme` 携带封闭的 `tone`（`neutral`/`info`/`success`/`warning`/`danger`）、`density`（`compact`/`comfortable`/`spacious`）与 `textScale`（`sm`/`md`/`lg`）token，渲染器把它们映射到目录的间距、字号与强调色。自由颜色、尺寸与 CSS 仍被拒绝。
 - **Action 审批**——在 `approvalActions` 里配置需要渲染器先确认的 Button action 名称。命中的名称会写入工具结果 metadata 的 `approval` 字段，客户端在提交前展示确认步骤。
-- **增量更新默认关闭**——`allowIncremental` 默认为 `false`，因为不保留跨轮 Surface 状态的渲染器无法渲染「只更新旧 Surface」的消息。保持默认时这类调用会失败并提示发送完整的 `createSurface`；仅当客户端跨轮保留 Surface 状态时才开启。
+- **开启增量后会组合出完整后继 surface**——启用 `allowIncremental` 时，工具按 Session 记住每个 Surface（上限 32），把 `updateComponents`、`updateDataModel`、`deleteSurface` 组合成完整的 `createSurface`，任何渲染器都能从零绘制，无状态客户端也得到同样结果。默认为 `false`，此时这类调用会失败并提示发送完整的 `createSurface`。
 - **增量消息只做形状校验**——工具按 Session 记住最多 32 个 surface id，因此 `updateComponents`、`updateDataModel` 与 `deleteSurface` 可以指向更早调用创建的 surface。这类跨调用消息只校验组件形状，因为本次调用没有该 surface 的图；完整图校验由 Client 渲染器负责。该记忆为进程生命周期、按 Session 隔离。
 
 <a id="dev-note"></a>

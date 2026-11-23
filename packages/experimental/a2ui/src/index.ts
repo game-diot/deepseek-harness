@@ -3,7 +3,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool, ToolArgsError } from '@deepseek-ai/dsh-tools'
-import { parseA2uiEnvelope } from './schema.ts'
+import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
+import { keepReachableFromRoot, parseA2uiEnvelope } from './schema.ts'
 import { A2UI_META_PROTOCOL } from './types.ts'
 
 /** Cordis plugin name used by Loader diagnostics. */
@@ -109,6 +110,7 @@ function approvalNames(
     const event = record.action
     if (typeof event === 'object' && event !== null) {
       const name = (event as Record<string, unknown>).event
+      /* v8 ignore next -- the parser admits an action only with an event object. */
       if (typeof name === 'object' && name !== null) {
         const candidate = (name as Record<string, unknown>).name
         if (typeof candidate === 'string' && guarded.includes(candidate)) found.add(candidate)
@@ -120,13 +122,140 @@ function approvalNames(
   return [...found]
 }
 
-/** Surface ids one Session may keep for incremental messages. */
+/**
+ * One Surface as this deployment last observed it, so an incremental message can be
+ * composed into a complete successor any renderer can draw from scratch.
+ */
+interface SurfaceState {
+  readonly catalogId: string
+  components: unknown[]
+  dataModel: unknown
+  metadata?: unknown
+}
+
+/** Surfaces one Session may keep for incremental messages. */
 const MAX_REMEMBERED_SURFACES = 32
+
+function mergeComponents(existing: readonly unknown[], updates: readonly unknown[]): unknown[] {
+  const order: string[] = []
+  const byId = new Map<string, unknown>()
+  for (const component of [...existing, ...updates]) {
+    /* v8 ignore next -- the parser admits only object components. */
+    if (typeof component !== 'object' || component === null) continue
+    const id = (component as { id?: unknown }).id
+    /* v8 ignore next -- the parser admits only components with a string id. */
+    if (typeof id !== 'string') continue
+    if (!byId.has(id)) order.push(id)
+    byId.set(id, component)
+  }
+  return order.map(id => byId.get(id))
+}
+
+function setModelPath(model: unknown, path: string, value: unknown): unknown {
+  const segments = path.split('/').filter(Boolean)
+  if (segments.length === 0) return value
+  const root = typeof model === 'object' && model !== null && !Array.isArray(model)
+    ? { ...(model as Record<string, unknown>) }
+    : {}
+  let cursor: Record<string, unknown> = root
+  for (const segment of segments.slice(0, -1)) {
+    const next = cursor[segment]
+    if (typeof next !== 'object' || next === null || Array.isArray(next)) cursor[segment] = {}
+    else cursor[segment] = { ...(next as Record<string, unknown>) }
+    cursor = cursor[segment] as Record<string, unknown>
+  }
+  const leaf = segments.at(-1)
+  /* v8 ignore next -- a non-empty path always has a final segment. */
+  if (leaf !== undefined) cursor[leaf] = value
+  return root
+}
+
+function toJson(value: unknown): JsonValue {
+  const snapshot = snapshotJsonValue(value)
+  /* v8 ignore next -- composition only reuses fields the parser already validated. */
+  if (!isJsonValue(snapshot)) throw new TypeError('composed A2UI message is not lossless JSON')
+  return snapshot as JsonValue
+}
+
+function surfaceMessage(surfaceId: string, state: SurfaceState): Record<string, unknown> {
+  return {
+    version: '1.0',
+    createSurface: {
+      surfaceId,
+      catalogId: state.catalogId,
+      components: state.components,
+      ...state.dataModel === undefined ? {} : { dataModel: state.dataModel },
+      ...state.metadata === undefined ? {} : { metadata: state.metadata },
+    },
+  }
+}
+
+/**
+ * Apply one envelope to remembered Surface state and emit complete successors.
+ * @param messages - validated messages of this call.
+ * @param states - the Session's remembered Surfaces, mutated in place.
+ * @returns messages a stateless renderer can draw, in first-touch order.
+ */
+function composeComplete(messages: readonly unknown[], states: Map<string, SurfaceState>): JsonValue[] {
+  const touched = new Map<string, SurfaceState>()
+  const removed: string[] = []
+  for (const entry of messages) {
+    /* v8 ignore next -- parsed messages are always objects. */
+    if (typeof entry !== 'object' || entry === null) continue
+    const message = entry as Record<string, unknown>
+    const created = message.createSurface as {
+      surfaceId: string
+      catalogId: string
+      components: unknown[]
+      dataModel?: unknown
+      metadata?: unknown
+    } | undefined
+    if (created !== undefined) {
+      const state: SurfaceState = {
+        catalogId: created.catalogId,
+        components: keepReachableFromRoot(created.components),
+        dataModel: created.dataModel,
+        ...created.metadata === undefined ? {} : { metadata: created.metadata },
+      }
+      states.set(created.surfaceId, state)
+      touched.set(created.surfaceId, state)
+      continue
+    }
+    const updated = message.updateComponents as { surfaceId: string; components: unknown[] } | undefined
+    if (updated !== undefined) {
+      const state = states.get(updated.surfaceId)
+      /* v8 ignore next -- the parser admits this target only when the Surface is known. */
+      if (state === undefined) continue
+      state.components = keepReachableFromRoot(mergeComponents(state.components, updated.components))
+      touched.set(updated.surfaceId, state)
+      continue
+    }
+    const data = message.updateDataModel as { surfaceId: string; path: string; value: unknown } | undefined
+    if (data !== undefined) {
+      const state = states.get(data.surfaceId)
+      /* v8 ignore next -- the parser admits this target only when the Surface is known. */
+      if (state === undefined) continue
+      state.dataModel = setModelPath(state.dataModel, data.path, data.value)
+      touched.set(data.surfaceId, state)
+      continue
+    }
+    const deleted = message.deleteSurface as { surfaceId: string } | undefined
+    /* v8 ignore next -- the parser admits only the four handled message kinds. */
+    if (deleted !== undefined) {
+      states.delete(deleted.surfaceId)
+      touched.delete(deleted.surfaceId)
+      removed.push(deleted.surfaceId)
+    }
+  }
+  const composed = [...touched].map(([surfaceId, state]) => toJson(surfaceMessage(surfaceId, state)))
+  for (const surfaceId of removed) composed.push(toJson({ version: '1.0', deleteSurface: { surfaceId } }))
+  return composed
+}
 
 /** Register the `a2ui_render` tool for this plugin's lifetime. */
 export function apply(ctx: Context, config: Config): void {
   const limits = resolveConfig(config)
-  const knownSurfaces = new WeakMap<object, Set<string>>()
+  const surfaceStates = new WeakMap<object, Map<string, SurfaceState>>()
   ctx.tools.register(defineTool({
     name: 'a2ui_render',
     description: 'Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible conversation renderer. Render repeated content with a ChildList template (`children: {componentId, path}`) and bind each item by a path relative to the item, never an absolute one. When a user message starts with `[A2UI action]`, read its JSON and call this tool again with a complete successor Surface when the action changes visible state; do not rewrite the historical Surface.',
@@ -149,22 +278,27 @@ export function apply(ctx: Context, config: Config): void {
     execute: (args, exec) => {
       try {
         const session = limits.allowIncremental && exec.agent !== undefined ? exec.agent.session : undefined
-        let known: Set<string> | undefined
+        let states: Map<string, SurfaceState> | undefined
         if (session !== undefined) {
-          known = knownSurfaces.get(session)
-          if (known === undefined) {
-            known = new Set<string>()
-            knownSurfaces.set(session, known)
+          states = surfaceStates.get(session)
+          if (states === undefined) {
+            states = new Map<string, SurfaceState>()
+            surfaceStates.set(session, states)
           }
-          const overflow = known.size - MAX_REMEMBERED_SURFACES + 1
+          const overflow = states.size - MAX_REMEMBERED_SURFACES + 1
           if (overflow > 0) {
-            for (const stale of [...known].slice(0, overflow)) known.delete(stale)
+            for (const stale of [...states.keys()].slice(0, overflow)) states.delete(stale)
           }
         }
+        const known = states === undefined ? undefined : new Set(states.keys())
         const parsed = parseA2uiEnvelope(args.messages, known)
         enforceLimits(parsed, limits)
-        const approval = approvalNames(parsed.envelope, limits.approvalActions)
-        return Promise.resolve(approval.length === 0 ? parsed.envelope : { ...parsed.envelope, approval })
+        const composed = states === undefined
+          ? parsed.envelope
+          : { protocol: parsed.envelope.protocol, messages: composeComplete(parsed.envelope.messages, states) }
+        if (composed !== parsed.envelope) enforceLimits({ envelope: composed, componentCount: parsed.componentCount }, limits)
+        const approval = approvalNames(composed, limits.approvalActions)
+        return Promise.resolve(approval.length === 0 ? composed : { ...composed, approval })
       } catch (error) {
         if (error instanceof ToolArgsError) throw error
         /* v8 ignore next -- Zod and this package's graph checks throw Error instances. */
