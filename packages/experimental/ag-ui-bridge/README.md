@@ -24,7 +24,7 @@ This experimental Host plugin exposes an authenticated AG-UI SSE run endpoint wh
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount it only in an experimental profile, set the required `provider` and `model`, and configure `path`, `maxBodyBytes`, `maxThreads`, and `maxHistoryBytes` as needed. The named route requires an authenticated Peer, accepts `POST`, validates `RunAgentInput`, rejects concurrent runs on one thread, and disposes every bridge-owned Agent when the plugin unloads.
+Mount it only in an experimental profile, set the required `provider` and `model`, and configure `path`, `maxBodyBytes`, `maxThreads`, `maxHistoryBytes`, and `sessionCwd` as needed. `sessionCwd` is the absolute project directory recorded on the Sessions the bridge creates; without it a Session lands in the store's no-cwd bucket, which the Web workspace view cannot open. The named route requires an authenticated Peer, accepts `POST`, validates `RunAgentInput`, rejects concurrent runs on one thread, and disposes every bridge-owned Agent when the plugin unloads.
 
 Set `demo: true` to serve a self-contained page at `<path>/demo` that posts to this endpoint, prints the RAW event stream, and renders the restricted A2UI Basic Catalog subset with a plain DOM renderer. Use it to inspect the bridge from a browser; it is not the product renderer and ships disabled.
 

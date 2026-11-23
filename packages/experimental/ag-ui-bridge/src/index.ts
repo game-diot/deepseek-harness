@@ -35,6 +35,12 @@ export interface Config {
   model: string
   /** Maximum process-local authenticated Thread bindings. */
   maxThreads?: number
+  /**
+   * Absolute project directory recorded on the Sessions this bridge creates, so the
+   * resulting Sessions group under that workspace instead of the no-cwd bucket.
+   * Defaults to the host process working directory.
+   */
+  sessionCwd?: string
   /** Maximum recorded Thread history bytes carried by one Run request. */
   maxHistoryBytes?: number
   /** Serve a self-contained `/demo` page beside the run endpoint. */
@@ -48,6 +54,7 @@ export const Config: z<Config> = z.object({
   provider: z.string().required(),
   model: z.string().required(),
   maxThreads: z.number().step(1).min(1).default(32),
+  sessionCwd: z.string(),
   maxHistoryBytes: z.number().step(1).min(1).default(1_048_576),
   demo: z.boolean().default(false),
 })
@@ -136,6 +143,7 @@ export function apply(ctx: Context, config: Config): void {
   const path = config.path ?? '/ag-ui/run'
   const maxBodyBytes = config.maxBodyBytes ?? 1_048_576
   const maxThreads = config.maxThreads ?? 32
+  const sessionCwd = config.sessionCwd ?? process.cwd()
   const maxHistoryBytes = config.maxHistoryBytes ?? 1_048_576
   const threads = new Map<string, AgentHandle>()
   const histories = new Map<string, AgUiRunHistory>()
@@ -317,6 +325,7 @@ export function apply(ctx: Context, config: Config): void {
             if (handle === undefined) {
               const creation = ctx.agents.create({
                 sessionId: brandString<SessionId>(randomUUID()),
+                meta: { cwd: sessionCwd },
                 agentOptions: { provider: config.provider, model: config.model },
               })
               pendingCreations.add(creation)

@@ -24,7 +24,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-只在实验 Profile 中挂载，设置必填的 `provider` 和 `model`，并按需配置 `path`、`maxBodyBytes`、`maxThreads` 和 `maxHistoryBytes`。命名路由要求已鉴权 Peer，只接受 `POST`，校验 `RunAgentInput`，拒绝同一 Thread 的并发 Run，并在插件卸载时清理所有 Bridge 拥有的 Agent。
+只在实验 Profile 中挂载，设置必填的 `provider` 和 `model`，并按需配置 `path`、`maxBodyBytes`、`maxThreads`、`maxHistoryBytes` 与 `sessionCwd`。`sessionCwd` 是 Bridge 创建 Session 时记录的项目目录；不设置时 Session 会落到存储的无 cwd 分区，Web 的 Workspace 视图无法打开。命名路由要求已鉴权 Peer，只接受 `POST`，校验 `RunAgentInput`，拒绝同一 Thread 的并发 Run，并在插件卸载时清理所有 Bridge 拥有的 Agent。
 
 设置 `demo: true` 会在 `<path>/demo` 提供一个自包含页面：它向本端点提交请求、显示原始事件流，并用普通 DOM 渲染宿主准入的 A2UI Basic Catalog 子集。它用于在浏览器里观察 Bridge，不是产品渲染器，默认关闭。
 

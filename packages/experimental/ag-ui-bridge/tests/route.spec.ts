@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { PassThrough, Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
+import type { CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import { WebServer, type WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { AgentRegistry, type AgentHandle } from '@deepseek-ai/dsh-agent'
 import { describe, expect, it, vi } from 'vitest'
@@ -38,7 +39,7 @@ function setup(config: Partial<Config> = {}) {
   const webServer = Object.assign(Object.create(WebServer.prototype), {
     register: vi.fn((value: WebRoute) => { route = value; routes.push(value); return release }),
   }) as WebServer
-  const create = vi.fn<() => Promise<AgentHandle>>()
+  const create = vi.fn<(options: CreateAgentOptions) => Promise<AgentHandle>>()
   const agents = Object.assign(Object.create(AgentRegistry.prototype), { create }) as AgentRegistry
   ctx.provide('webServer', webServer)
   ctx.provide('agents', agents)
@@ -396,6 +397,25 @@ describe('AG-UI bridge route', () => {
     const after = await post(fixture.route(), input({ runId: 'after-drop' }))
     expect(after.status).toBe(409)
     expect(after.body).toContain('DSH_AG_UI_HISTORY_UNUSABLE')
+    await fixture.fiber.dispose()
+  })
+
+  it('records the configured project directory on the Sessions it creates', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, sessionCwd: '/tmp/bridge-workspace' })
+    fixture.create.mockResolvedValue(handle(fixture.ctx, 'success').value)
+    await fixture.fiber.await()
+    await post(fixture.route(), input())
+    expect(fixture.create).toHaveBeenCalledOnce()
+    expect(fixture.create.mock.calls[0]?.[0]).toMatchObject({ meta: { cwd: '/tmp/bridge-workspace' } })
+    await fixture.fiber.dispose()
+  })
+
+  it('falls back to the host process directory when no project directory is configured', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    fixture.create.mockResolvedValue(handle(fixture.ctx, 'success').value)
+    await fixture.fiber.await()
+    await post(fixture.route(), input())
+    expect(typeof fixture.create.mock.calls[0]?.[0].meta?.cwd).toBe('string')
     await fixture.fiber.dispose()
   })
 
