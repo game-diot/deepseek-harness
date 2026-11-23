@@ -48,6 +48,8 @@ export function demoPage(runPath: string): string {
   .icon { font-size: 18px; line-height: 1; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field-label { font-size: 12px; opacity: .8; }
+  .checks { font-size: 12px; color: #f85149; }
+  .checks:empty { display: none; }
   .control { padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(127,127,127,.45); background: transparent; color: inherit; }
   .choices { display: flex; flex-wrap: wrap; gap: 10px; }
   .choice { display: flex; gap: 6px; align-items: center; font-size: 14px; }
@@ -175,6 +177,7 @@ function commitControl(surfaceId, component, value) {
   if (raw !== null && typeof raw === 'object' && typeof raw['@path'] === 'string') {
     setPath(surfaceId, raw['@path'], value);
   }
+  updateChecks(surfaceId);
 }
 
 function resolveDeep(surfaceId, value) {
@@ -282,6 +285,7 @@ function resetThread() {
   signatureCache.clear();
   themes.clear();
   scopedBases.clear();
+  checkTargets.clear();
   overrides.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
@@ -425,6 +429,7 @@ function renderSurfaces() {
       if (theme.textScale === undefined) box.style.removeProperty('--a2ui-font');
       else box.style.setProperty('--a2ui-font', TEXT_SCALE[theme.textScale] || '');
     }
+    checkTargets.set(surfaceId, []);
     const signatures = new Map();
     const referenced = new Set();
     for (const id of ids) {
@@ -479,6 +484,72 @@ function fallback(text) {
   return el;
 }
 
+function checkTruthy(result) {
+  if (typeof result === 'boolean') return result;
+  if (result !== null && typeof result === 'object') return result.valid === true;
+  return Boolean(result);
+}
+
+function evaluateCheck(surfaceId, node) {
+  if (node === null || typeof node !== 'object') return node;
+  if (typeof node['@path'] === 'string') return resolvePath(surfaceId, node['@path']);
+  const args = node.args || {};
+  const arg = key => evaluateCheck(surfaceId, args[key]);
+  if (node['@call'] === 'required') {
+    const value = arg('value');
+    const empty = value === undefined || value === null || value === ''
+      || (Array.isArray(value) && value.length === 0);
+    return { valid: !empty };
+  }
+  if (node['@call'] === 'regex') {
+    const text = String(arg('value') === undefined || arg('value') === null ? '' : arg('value')).slice(0, 2000);
+    try {
+      return { valid: new RegExp(args.pattern, 'u').test(text) };
+    } catch (error) {
+      return { valid: false, message: 'invalid pattern' };
+    }
+  }
+  if (node['@call'] === 'length') {
+    const text = String(arg('value') === undefined || arg('value') === null ? '' : arg('value'));
+    const min = args.min === undefined ? 0 : args.min;
+    const max = args.max === undefined ? Infinity : args.max;
+    return { valid: text.length >= min && text.length <= max };
+  }
+  if (node['@call'] === 'numeric') {
+    const value = Number(arg('value'));
+    const min = args.min === undefined ? -Infinity : args.min;
+    const max = args.max === undefined ? Infinity : args.max;
+    return { valid: Number.isFinite(value) && value >= min && value <= max };
+  }
+  if (node['@call'] === 'email') {
+    return { valid: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(arg('value') === undefined ? '' : arg('value'))) };
+  }
+  if (node['@call'] === 'and') return { valid: (args.values || []).every(item => checkTruthy(evaluateCheck(surfaceId, item))) };
+  if (node['@call'] === 'or') return { valid: (args.values || []).some(item => checkTruthy(evaluateCheck(surfaceId, item))) };
+  if (node['@call'] === 'not') return { valid: !checkTruthy(evaluateCheck(surfaceId, args.value)) };
+  return { valid: true };
+}
+
+const checkTargets = new Map();
+
+function failedCheckMessages(surfaceId, checks) {
+  const messages = [];
+  for (const rule of checks || []) {
+    const result = evaluateCheck(surfaceId, rule.condition);
+    if (checkTruthy(result)) continue;
+    const fromResult = result !== null && typeof result === 'object' && typeof result.message === 'string' ? result.message : '';
+    messages.push(rule.message || fromResult || '输入无效');
+  }
+  return messages;
+}
+
+function updateChecks(surfaceId) {
+  const base = baseSurfaceId(surfaceId);
+  for (const target of checkTargets.get(base) || []) {
+    target.node.textContent = failedCheckMessages(surfaceId, target.component.checks).join('；');
+  }
+}
+
 function renderComponent(surfaceId, id) {
   const el = buildComponent(surfaceId, id);
   const c = componentFor(surfaceId, id);
@@ -486,6 +557,15 @@ function renderComponent(surfaceId, id) {
     const base = baseSurfaceId(surfaceId);
     el.dataset.cid = base === surfaceId ? c.id : c.id + surfaceId.slice(base.length);
     el.dataset.kind = c.component;
+    if (Array.isArray(c.checks) && c.checks.length > 0) {
+      const node = document.createElement('div');
+      node.className = 'checks';
+      node.textContent = failedCheckMessages(surfaceId, c.checks).join('；');
+      el.append(node);
+      const targets = checkTargets.get(base) || [];
+      targets.push({ component: c, node });
+      checkTargets.set(base, targets);
+    }
   }
   return el;
 }
@@ -784,6 +864,7 @@ function applyA2ui(payload) {
         if (key.startsWith(surfaceId + '#')) scopedBases.delete(key);
       }
       themes.delete(surfaceId);
+      checkTargets.delete(surfaceId);
       signatureCache.delete(surfaceId);
       const box = surfaceBoxes.get(surfaceId);
       if (box !== undefined) {

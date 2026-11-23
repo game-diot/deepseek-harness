@@ -635,6 +635,77 @@ describe('a2ui_render', () => {
     expect(resultText(result)).toContain('relative to the item')
   })
 
+  it('admits catalog check rules on a checkable component', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'checkedForm',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        dataModel: { form: { name: '', email: '' } },
+        components: [
+          { id: 'root', component: 'Card', child: 'body' },
+          { id: 'body', component: 'Column', children: ['nameField', 'emailField', 'submit'] },
+          {
+            id: 'nameField', component: 'TextField', label: '姓名',
+            value: { '@path': '/form/name' },
+            checks: [
+              { condition: { '@call': 'required', args: { value: { '@path': '/form/name' } } }, message: '姓名必填' },
+              {
+                condition: {
+                  '@call': 'and',
+                  args: {
+                    values: [
+                      { '@call': 'length', args: { value: { '@path': '/form/name' }, min: 2, max: 20 } },
+                      { '@call': 'not', args: { value: { '@call': 'required', args: { value: '' } } } },
+                    ],
+                  },
+                },
+                message: '姓名长度需在 2 到 20 之间',
+              },
+            ],
+          },
+          {
+            id: 'emailField', component: 'TextField', label: '邮箱',
+            value: { '@path': '/form/email' },
+            checks: [{ condition: { '@call': 'email', args: { value: { '@path': '/form/email' } } } }],
+          },
+          {
+            id: 'submit', component: 'Button', child: 'submitLabel',
+            action: { event: { name: 'submitForm' } },
+          },
+          { id: 'submitLabel', component: 'Text', text: '提交' },
+        ],
+      },
+    }])
+    expect(result).toMatchObject({ isError: false })
+  })
+
+  it('rejects checks outside the catalog function set or its regex dialect', async () => {
+    const ctx = await setup()
+    const build = (checks: unknown) => ({
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'badChecks',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [
+          { id: 'root', component: 'TextField', label: 'x', value: '', checks },
+        ],
+      },
+    })
+    const batches = [
+      [{ condition: { '@call': 'fetch', args: { url: 'https://example.com' } } }],
+      [{ condition: { '@call': 'regex', args: { value: 'x', pattern: '(?<=x)y' } } }],
+      [{ condition: { '@call': 'regex', args: { value: 'x', pattern: '\\p{L}' } } }],
+      [{ condition: { '@call': 'required', args: { value: 'x', extra: true } } }],
+      [{ condition: { '@call': 'required' } }],
+      [],
+    ]
+    for (const checks of batches) {
+      expect((await call(ctx, [build(checks)])).isError).toBe(true)
+    }
+  })
+
   it('evicts the oldest remembered surface beyond the per-Session bound', async () => {
     const ctx = await setup({ allowIncremental: true })
     const agent = { session: {} }

@@ -33,6 +33,51 @@ const dynamicString = z.union([z.string(), binding])
 const dynamicBoolean = z.union([z.boolean(), binding])
 const dynamicNumber = z.union([z.number(), binding])
 const dynamicStringList = z.union([z.array(z.string()), binding])
+/** The catalog's regex dialect forbids backreferences, lookarounds, named groups, and Unicode properties. */
+const regexPattern = z.string().min(1).max(256).refine(
+  pattern => !/\\[1-9]|\(\?<|\\p\{/u.test(pattern),
+  { message: 'the catalog regex dialect forbids backreferences, lookarounds, named groups, and Unicode property escapes' },
+)
+
+const checkExpression = z.lazy((): z.ZodType => z.union([
+  z.strictObject({ '@call': z.literal('required'), args: z.strictObject({ value: z.json() }) }),
+  z.strictObject({
+    '@call': z.literal('regex'),
+    args: z.strictObject({ value: dynamicString, pattern: regexPattern }),
+  }),
+  z.strictObject({
+    '@call': z.literal('length'),
+    args: z.strictObject({
+      value: dynamicString,
+      min: z.number().int().min(0).optional(),
+      max: z.number().int().min(0).optional(),
+    }),
+  }),
+  z.strictObject({
+    '@call': z.literal('numeric'),
+    args: z.strictObject({
+      value: dynamicNumber,
+      min: z.number().optional(),
+      max: z.number().optional(),
+    }),
+  }),
+  z.strictObject({ '@call': z.literal('email'), args: z.strictObject({ value: dynamicString }) }),
+  z.strictObject({
+    '@call': z.literal('and'),
+    args: z.strictObject({ values: z.array(dynamicCheckValue).min(2) }),
+  }),
+  z.strictObject({
+    '@call': z.literal('or'),
+    args: z.strictObject({ values: z.array(dynamicCheckValue).min(2) }),
+  }),
+  z.strictObject({ '@call': z.literal('not'), args: z.strictObject({ value: dynamicCheckValue }) }),
+]))
+const dynamicCheckValue = z.lazy((): z.ZodType => z.union([z.boolean(), binding, checkExpression]))
+const checks = z.array(z.strictObject({
+  condition: z.union([binding, checkExpression]),
+  message: z.string().min(1).max(200).optional(),
+})).min(1).max(8).optional()
+
 const weight = z.number()
 const align = z.enum(['start', 'center', 'end', 'stretch'])
 const justify = z.enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
@@ -78,6 +123,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('TextField'),
+    checks,
     label: dynamicString,
     value: dynamicString,
     placeholder: dynamicString.optional(),
@@ -87,6 +133,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('CheckBox'),
+    checks,
     label: dynamicString,
     value: dynamicBoolean,
     weight: weight.optional(),
@@ -94,6 +141,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('ChoicePicker'),
+    checks,
     label: dynamicString,
     options: z.array(z.strictObject({ label: dynamicString, value: z.string() })).min(1),
     value: dynamicStringList,
@@ -104,6 +152,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Slider'),
+    checks,
     label: dynamicString.optional(),
     min: z.number().optional(),
     max: z.number(),
@@ -135,6 +184,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('DateTimeInput'),
+    checks,
     value: dynamicString,
     label: dynamicString.optional(),
     enableDate: z.boolean().optional(),
@@ -167,6 +217,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Button'),
+    checks,
     child: componentId,
     variant: z.enum(['default', 'primary', 'borderless']).optional(),
     action: z.strictObject({ event }),
