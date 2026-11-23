@@ -58,7 +58,7 @@ The bridge does not alter the reusable prompt prefix.
 - **Interrupted streams end the Thread** — once a Run has written events and the response then aborts, the client cannot reproduce the delivered prefix, so the bridge retires that binding, frees its `maxThreads` slot, and later Runs fail with `DSH_AG_UI_HISTORY_UNUSABLE`. Backpressure counts as a write failure for the same reason: the bridge cancels the Run and retires the Thread rather than leave a partial history it cannot verify.
 - **Process-local Thread bindings** — a Principal-scoped binding does not survive process restart, and no persisted external Thread identifier maps to a DSH Session yet.
 - **Deferred protocol surface** — AG-UI state snapshots and deltas, interrupts, multimodal input, client-side Tools, and protobuf transport remain unsupported.
-- **A2UI travels as Tool data** — the canonical surface messages arrive after the Tool result as a `CUSTOM` event named `a2ui`; no AG-UI state or activity channel carries them, and the demo page renders only the Basic Catalog subset this Host admits.
+- **A2UI travels as Tool data** — the canonical surface messages arrive after the Tool result both as an AG-UI state snapshot (`snapshot.a2ui`) and, for back-compat, as a `CUSTOM` event named `a2ui`. `emitStateSnapshot` and `emitCustomEvent` switch each channel off. The demo page renders only the Basic Catalog subset this Host admits.
 
 <a id="dev-note"></a>
 ### Dev Note

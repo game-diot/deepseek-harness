@@ -968,6 +968,11 @@ function handleEvent(event) {
       bubble('tool', String(event.content ?? '').slice(0, 200));
       return;
     }
+    case 'STATE_SNAPSHOT': {
+      const snapshot = event.snapshot || {};
+      if (snapshot.a2ui) applyA2ui(snapshot.a2ui);
+      break;
+    }
     case 'CUSTOM': {
       if (event.name === 'a2ui') applyA2ui(event.value || {});
       else log('unhandled custom event: ' + String(event.name));

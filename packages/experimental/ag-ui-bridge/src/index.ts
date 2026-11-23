@@ -41,6 +41,10 @@ export interface Config {
    * Defaults to the host process working directory.
    */
   sessionCwd?: string
+  /** Emit the canonical A2UI payload as an AG-UI state snapshot. Defaults to true. */
+  emitStateSnapshot?: boolean
+  /** Emit the bridge-specific `CUSTOM` a2ui event. Defaults to true. */
+  emitCustomEvent?: boolean
   /** Maximum recorded Thread history bytes carried by one Run request. */
   maxHistoryBytes?: number
   /** Serve a self-contained `/demo` page beside the run endpoint. */
@@ -55,6 +59,8 @@ export const Config: z<Config> = z.object({
   model: z.string().required(),
   maxThreads: z.number().step(1).min(1).default(32),
   sessionCwd: z.string(),
+  emitStateSnapshot: z.boolean().default(true),
+  emitCustomEvent: z.boolean().default(true),
   maxHistoryBytes: z.number().step(1).min(1).default(1_048_576),
   demo: z.boolean().default(false),
 })
@@ -421,7 +427,14 @@ export function apply(ctx: Context, config: Config): void {
               if (event.type === 'tool/result' && started) {
                 bridge.toolResult(String(event.data.message.source.callId), toolResultText(event.data.message.content))
                 const a2ui = a2uiPayload(event.data.meta)
-                if (a2ui !== null) emit({ type: EventType.CUSTOM, name: 'a2ui', value: a2ui })
+                if (a2ui !== null) {
+                  if (config.emitStateSnapshot !== false) {
+                    emit({ type: EventType.STATE_SNAPSHOT, snapshot: { a2ui } })
+                  }
+                  if (config.emitCustomEvent !== false) {
+                    emit({ type: EventType.CUSTOM, name: 'a2ui', value: a2ui })
+                  }
+                }
                 return
               }
               if (event.type !== 'turn/end' || !started) return

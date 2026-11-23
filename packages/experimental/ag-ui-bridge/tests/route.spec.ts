@@ -607,6 +607,90 @@ describe('AG-UI bridge route', () => {
     await fixture.fiber.dispose()
   })
 
+  it('carries the A2UI payload on the state channel as well as the custom event', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: [{ version: '1.0', createSurface: { surfaceId: 's1' } }] },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).toContain('STATE_SNAPSHOT')
+    expect(response.body).toContain('"a2ui"')
+    expect(response.body).toContain('CUSTOM')
+    await fixture.fiber.dispose()
+  })
+
+  it('omits the custom event when the deployment disables it', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, emitCustomEvent: false })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: [{ version: '1.0', createSurface: { surfaceId: 's1' } }] },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).toContain('STATE_SNAPSHOT')
+    expect(response.body).not.toContain('"name":"a2ui"')
+    await fixture.fiber.dispose()
+  })
+
+  it('forwards approval names and honours a disabled state channel', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, emitStateSnapshot: false })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: {
+          protocol: 'a2ui/v1',
+          messages: [{ version: '1.0', createSurface: { surfaceId: 's1' } }],
+          approval: ['submitForm'],
+        },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).not.toContain('STATE_SNAPSHOT')
+    expect(response.body).toContain('CUSTOM')
+    expect(response.body).toContain('submitForm')
+    await fixture.fiber.dispose()
+  })
+
   it('skips the a2ui custom event when the tool result metadata is malformed', async () => {
     const fixture = setup({ maxBodyBytes: 10_000 })
     const created = handle(fixture.ctx, 'pending')
