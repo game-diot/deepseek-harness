@@ -38,12 +38,23 @@ function call(ctx: Context, messages: unknown[], agent?: { session: object }) {
 }
 
 type ToolMessage = {
-  createSurface?: { components: { id: string; text?: string }[]; dataModel?: Record<string, unknown>; metadata?: unknown }
+  createSurface?: {
+    components: { id: string; text?: string }[]
+    dataModel?: {
+      form?: { name?: string }
+      rows?: number[]
+      nested?: { deep?: { value?: number } }
+    }
+    metadata?: unknown
+  }
   deleteSurface?: { surfaceId: string }
 }
 
-function toolMessages(result: { readonly value?: { readonly messages: ToolMessage[] } }): ToolMessage[] {
-  return result.value?.messages ?? []
+function toolMessages(result: { readonly isError: boolean; readonly value?: unknown }): ToolMessage[] {
+  const value = result.value
+  if (typeof value !== 'object' || value === null) return []
+  const messages = (value as { messages?: unknown }).messages
+  return Array.isArray(messages) ? messages as ToolMessage[] : []
 }
 
 function resultText(result: { content: readonly { type: string; text?: string }[] }): string {
@@ -930,8 +941,7 @@ describe('a2ui_render', () => {
     ], agent)
 
     const messages = toolMessages(replaced)
-    const model = messages[0]?.createSurface?.dataModel as
-      { rows?: number[]; nested?: { deep?: { value?: number } } } | undefined
+    const model = messages[0]?.createSurface?.dataModel
     expect(model?.rows).toEqual([1, 2])
     expect(model?.nested?.deep?.value).toBe(7)
   })
