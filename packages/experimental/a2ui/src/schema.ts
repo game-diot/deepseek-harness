@@ -307,7 +307,7 @@ function validateComponentGraph(value: ParsedEnvelope, known?: Set<string>): voi
     } else if ('deleteSurface' in messageValue) {
       surfaces.delete(messageValue.deleteSurface.surfaceId)
       known?.delete(messageValue.deleteSurface.surfaceId)
-    } else if ('updateDataModel' in messageValue) {
+    } else {
       const { surfaceId } = messageValue.updateDataModel
       if (!surfaces.has(surfaceId) && (known === undefined || !known.has(surfaceId))) {
         throw new Error(`updateDataModel references unknown surface "${surfaceId}"`)

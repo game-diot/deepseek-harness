@@ -24,6 +24,20 @@ describe('A2UI surface theme tokens', () => {
     expect(readSurfaceTheme([{ version: '1.0', deleteSurface: { surfaceId: 'x' } }])).toBeUndefined()
     expect(readSurfaceTheme([surface({})])).toBeUndefined()
     expect(readSurfaceTheme([{ version: '1.0', createSurface: { surfaceId: 'x' } }])).toBeUndefined()
+    expect(readSurfaceTheme([surface('danger')])).toBeUndefined()
+  })
+
+  it('maps a single token without touching the other custom properties', () => {
+    const toneOnly = surfaceThemeStyle({ tone: 'info' })
+    expect(toneOnly.vars).toEqual({ '--a2ui-color-primary': '#4c8dff' })
+
+    const densityOnly = surfaceThemeStyle({ density: 'spacious' })
+    expect(Object.keys(densityOnly.vars).every(key => key.startsWith('--a2ui-spacing') || key === '--a2ui-grid-base')).toBe(true)
+    expect(densityOnly.tone).toBeUndefined()
+
+    const scaleOnly = surfaceThemeStyle({ textScale: 'sm' })
+    expect(scaleOnly.vars['--a2ui-font-size']).toBe('12px')
+    expect(scaleOnly.vars['--a2ui-color-primary']).toBeUndefined()
   })
 
   it('maps tokens onto catalog custom properties', () => {

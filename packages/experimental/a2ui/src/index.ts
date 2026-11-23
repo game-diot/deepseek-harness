@@ -105,10 +105,9 @@ export function apply(ctx: Context, config: Config): void {
             known = new Set<string>()
             knownSurfaces.set(session, known)
           }
-          while (known.size >= MAX_REMEMBERED_SURFACES) {
-            const oldest = known.values().next()
-            if (oldest.done === true) break
-            known.delete(oldest.value)
+          const overflow = known.size - MAX_REMEMBERED_SURFACES + 1
+          if (overflow > 0) {
+            for (const stale of [...known].slice(0, overflow)) known.delete(stale)
           }
         }
         const parsed = parseA2uiEnvelope(args.messages, known)

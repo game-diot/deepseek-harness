@@ -530,6 +530,41 @@ describe('a2ui_render', () => {
     }
   })
 
+  it('evicts the oldest remembered surface beyond the per-Session bound', async () => {
+    const ctx = await setup()
+    const agent = { session: {} }
+    const surface = (index: number) => ({
+      version: '1.0',
+      createSurface: {
+        surfaceId: `bound-${String(index)}`,
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: 'root', component: 'Text', text: String(index) }],
+      },
+    })
+
+    for (let index = 1; index <= 33; index += 1) {
+      expect((await call(ctx, [surface(index)], agent)).isError).toBe(false)
+    }
+
+    const newest = await call(ctx, [
+      { version: '1.0', updateDataModel: { surfaceId: 'bound-33', path: '/x', value: 1 } },
+    ], agent)
+    expect(newest.isError).toBe(false)
+
+    const oldest = await call(ctx, [
+      { version: '1.0', updateDataModel: { surfaceId: 'bound-1', path: '/x', value: 1 } },
+    ], agent)
+    expect(oldest.isError).toBe(true)
+  })
+
+  it('rejects an incremental message that names a surface without any Session', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [
+      { version: '1.0', updateDataModel: { surfaceId: 'unknown', path: '/x', value: 1 } },
+    ])
+    expect(result.isError).toBe(true)
+  })
+
   it('admits incremental messages for a surface this session created earlier', async () => {
     const ctx = await setup()
     const agent = { session: {} }

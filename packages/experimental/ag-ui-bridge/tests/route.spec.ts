@@ -587,6 +587,31 @@ describe('AG-UI bridge route', () => {
     await fixture.fiber.dispose()
   })
 
+  it('skips the a2ui custom event when the tool result metadata is malformed', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: 'not-an-array' },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).not.toContain('"name":"a2ui"')
+    await fixture.fiber.dispose()
+  })
+
   it('serves the demo page only when enabled', async () => {
     const disabled = setup()
     await disabled.fiber.await()
