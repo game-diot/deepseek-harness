@@ -17,6 +17,8 @@ import { EventType, PROTOCOL_VERSION } from '@ag-ui/core'
 import { AgUiRunEmitter } from './run-emitter.ts'
 import { AgUiRunHistory, historyBytes, projectMessages, sameHistory } from './run-history.ts'
 import { demoPage } from './demo.ts'
+import { exampleHtml } from './example.ts'
+import { readFileSync } from 'node:fs'
 
 /** Approval answers this bridge can deliver. */
 type ApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'
@@ -74,6 +76,8 @@ export interface Config {
   maxHistoryBytes?: number
   /** Serve a self-contained `/demo` page beside the run endpoint. */
   demo?: boolean
+  /** Serve the standalone example that uses the published AG-UI client only. */
+  example?: boolean
 }
 
 /** Loader schema for the optional bridge. */
@@ -90,6 +94,7 @@ export const Config: z<Config> = z.object({
   interruptTimeoutMs: z.number().step(1).min(1000).default(60_000),
   maxHistoryBytes: z.number().step(1).min(1).default(1_048_576),
   demo: z.boolean().default(false),
+  example: z.boolean().default(false),
 })
 
 async function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
@@ -284,6 +289,45 @@ export function apply(ctx: Context, config: Config): void {
       await Promise.all([...threads.values()].map(handle => handle.dispose()))
       histories.clear()
       stale.clear()
+    }
+    if (config.example === true) {
+      yield ctx.webServer.register({
+        kind: 'exact', path: `${path}/example`, auth: 'required',
+        handler: (req, res) => {
+          if (req.method !== 'GET') {
+            res.writeHead(405, { allow: 'GET', 'cache-control': 'no-store' }).end()
+            return
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+            .end(exampleHtml)
+        },
+      })
+      yield ctx.webServer.register({
+        kind: 'exact', path: `${path}/example/client.js`, auth: 'required',
+        handler: (req, res) => {
+          if (req.method !== 'GET') {
+            res.writeHead(405, { allow: 'GET', 'cache-control': 'no-store' }).end()
+            return
+          }
+          let bundle: Buffer | undefined
+          for (const candidate of ['../official-client.js', '../lib/official-client.js']) {
+            try {
+              bundle = readFileSync(new URL(candidate, import.meta.url))
+              break
+            } catch { /* try the next candidate */ }
+          }
+          /* v8 ignore next 6 -- only reachable when `build:example` never ran. */
+          if (bundle === undefined) {
+            json(res, 404, {
+              error: 'build the example bundle first',
+              code: 'DSH_AG_UI_EXAMPLE_UNAVAILABLE',
+            })
+            return
+          }
+          res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' })
+            .end(bundle)
+        },
+      })
     }
     if (config.demo === true) {
       yield ctx.webServer.register({

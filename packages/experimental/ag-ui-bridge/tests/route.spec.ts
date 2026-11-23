@@ -839,6 +839,41 @@ describe('AG-UI bridge route', () => {
     await fixture.fiber.dispose()
   })
 
+  it('serves the standalone example page and its bundle only when enabled', async () => {
+    const disabled = setup()
+    await disabled.fiber.await()
+    expect(disabled.routes.some(route => route.path === '/ag-ui/run/example')).toBe(false)
+    await disabled.fiber.dispose()
+
+    const enabled = setup({ example: true })
+    await enabled.fiber.await()
+    const page = enabled.routes.find(route => route.path === '/ag-ui/run/example')
+    const bundle = enabled.routes.find(route => route.path === '/ag-ui/run/example/client.js')
+    expect(page).toMatchObject({ kind: 'exact', auth: 'required' })
+
+    const html = new ResponseFixture()
+    await page?.handler(request('GET') as never, html as never, peer() as never)
+    expect(html.status).toBe(200)
+    expect(html.headers['content-type']).toContain('text/html')
+    expect(html.body).toContain('client.js')
+
+    const htmlRejected = new ResponseFixture()
+    await page?.handler(request('POST') as never, htmlRejected as never, peer() as never)
+    expect(htmlRejected.status).toBe(405)
+
+    const script = new ResponseFixture()
+    await bundle?.handler(request('GET') as never, script as never, peer() as never)
+    // The bundle is built by `build:example`; without it the route reports a stable code.
+    expect([200, 404]).toContain(script.status)
+    if (script.status === 200) expect(script.headers['content-type']).toContain('javascript')
+    else expect(script.body).toContain('DSH_AG_UI_EXAMPLE_UNAVAILABLE')
+
+    const scriptRejected = new ResponseFixture()
+    await bundle?.handler(request('POST') as never, scriptRejected as never, peer() as never)
+    expect(scriptRejected.status).toBe(405)
+    await enabled.fiber.dispose()
+  })
+
   it('serves the demo page only when enabled', async () => {
     const disabled = setup()
     await disabled.fiber.await()

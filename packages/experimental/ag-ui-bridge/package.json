@@ -2,7 +2,9 @@
   "name": "@deepseek-ai/dsh-ag-ui-bridge",
   "description": "Optional AG-UI SSE bridge beside the native DSH client protocol",
   "version": "0.2.2-rc.3",
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
@@ -12,14 +14,26 @@
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
-    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
     "./src/*": "./src/*",
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
-  "files": ["locale/*.json", "lib/index.js", "lib/types/**/*.d.ts", "lib/types/**/*.d.ts.map", "lib/**/*.js.map", "src"],
+  "files": [
+    "locale/*.json",
+    "lib/index.js",
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "lib/**/*.js.map",
+    "src"
+  ],
   "license": "MIT",
-  "peerDependencies": { "@deepseek-ai/cordis": "workspace:~" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
   "dependencies": {
     "@ag-ui/core": "1.0.5",
     "@ag-ui/encoder": "1.0.5",
@@ -34,5 +48,8 @@
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
     "@deepseek-ai/dsh-typert-protocol": "workspace:*"
+  },
+  "scripts": {
+    "build:example": "esbuild examples/official-client.mjs --bundle --format=iife --platform=browser --target=es2022 --outfile=lib/official-client.js"
   }
 }

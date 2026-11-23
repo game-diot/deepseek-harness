@@ -57,6 +57,7 @@ Bridge 不改变可复用 Prompt 前缀。
 - **历史只来自本 Bridge** — Thread 历史只在该进程产出后存在。对未知 Thread 回放任何历史以 `DSH_AG_UI_HISTORY_UNREPLAYABLE` 失败；回放前缀与记录不一致以 `DSH_AG_UI_HISTORY_DIVERGED` 失败；超过 `maxHistoryBytes` 的请求以 `DSH_AG_UI_HISTORY_TOO_LARGE` 失败。
 - **中断的流会终结该 Thread** — 一旦 Run 已写出事件而响应随后中断，Client 无法重现已投递前缀，因此 Bridge 会解除该绑定、释放其 `maxThreads` 名额，后续 Run 以 `DSH_AG_UI_HISTORY_UNUSABLE` 失败。背压按写入失败处理：Bridge 取消该 Run 并终结 Thread，而不是留下无法校验的部分历史。
 - **进程内 Thread 绑定** — 按 Principal 隔离的绑定不会跨进程重启保留，也还没有把外部 Thread 标识持久映射到 DSH Session。
+- **独立示例页**——设置 `example: true` 会在 `<path>/example` 提供一页只依赖已发布 `@ag-ui/client` 的实现，从 `STATE_SNAPSHOT` 渲染 A2UI；其 bundle 由 `pnpm --filter @deepseek-ai/dsh-ag-ui-bridge build:example` 生成。
 - **中断为可选能力**——开启 `interruptOnApproval` 后，工具的审批问题会让 Run 以 interrupt 结果结束，同一 thread 的下一次 Run 通过 `resume` 作答。中断待决期间该 thread 拒绝普通 Run；超过 `interruptTimeoutMs` 未作答按 `cancelled` 结算并退役该 thread。State 增量、多模态输入、客户端 Tools 与 protobuf 传输仍未支持。
 - **A2UI 走 Tool 数据** — 规范化 Surface 消息在 Tool 结果之后同时以 AG-UI State 快照（`snapshot.a2ui`）与（兼容保留的）`a2ui` 命名 `CUSTOM` 事件到达；`emitStateSnapshot` 与 `emitCustomEvent` 可分别关闭。demo 页面只渲染本宿主准入的 Basic Catalog 子集。
 
