@@ -30,6 +30,16 @@ interface A2uiRendererProps {
   readonly onAction?: (action: ActionPayload) => boolean
 }
 
+/**
+ * Reduce a validation failure to the sentence a reader can act on.
+ * @param error - value thrown by the renderer.
+ * @returns the message, bounded for display.
+ */
+function rejectionReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.length > 400 ? `${message.slice(0, 400)}…` : message
+}
+
 /** Variant an earlier schema admitted for `Image`, which the renderer rejects. */
 const LEGACY_IMAGE_VARIANT = 'hero'
 
@@ -39,16 +49,13 @@ function isLegacyImage(component: unknown): boolean {
   return record.component === 'Image' && record.variant === LEGACY_IMAGE_VARIANT
 }
 
-function repairBatch(batch: { readonly components?: readonly unknown[] } | undefined): unknown[] | undefined {
-  if (batch === undefined || !Array.isArray(batch.components)) return undefined
-  const components: readonly unknown[] = batch.components
-  if (!components.some(isLegacyImage)) return undefined
-  const repaired: unknown[] = components.map(component => (
+function repairComponents(components: readonly unknown[] | undefined): unknown[] | undefined {
+  if (components === undefined || !components.some(isLegacyImage)) return undefined
+  return components.map(component => (
     isLegacyImage(component)
       ? { ...(component as Record<string, unknown>), variant: 'header' }
       : component
   ))
-  return repaired
 }
 
 /**
@@ -63,8 +70,8 @@ function recoverLegacyVariants(messages: A2uiClientEnvelope['messages']): A2uiCl
       readonly createSurface?: { readonly components?: readonly unknown[] }
       readonly updateComponents?: { readonly components?: readonly unknown[] }
     }
-    const surface = repairBatch(record.createSurface)
-    const batch = repairBatch(record.updateComponents)
+    const surface = repairComponents(record.createSurface?.components)
+    const batch = repairComponents(record.updateComponents?.components)
     if (surface === undefined && batch === undefined) return message
     return {
       ...message,
@@ -74,10 +81,19 @@ function recoverLegacyVariants(messages: A2uiClientEnvelope['messages']): A2uiCl
   })
 }
 
-interface RendererState {
+type RendererState = RenderableState | RejectedState
+
+interface RenderableState {
+  readonly error: false
   readonly processor: MessageProcessor<ReactCatalogComponent>
   readonly surfaces: ReturnType<MessageProcessor<ReactCatalogComponent>['getSurface']>[]
-  readonly error: boolean
+}
+
+interface RejectedState {
+  readonly error: true
+  readonly processor: MessageProcessor<ReactCatalogComponent>
+  /** What the renderer rejected. */
+  readonly reason: string
 }
 
 let styleUsers = 0
@@ -124,15 +140,20 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
     try {
       processor.processMessages(recoverLegacyVariants(metadata.messages) as ProcessableMessagePayload)
       setState({ processor, surfaces: [...processor.getSurfaces().values()], error: false })
-    } catch {
-      setState({ processor, surfaces: [], error: true })
+    } catch (error) {
+      setState({ processor, error: true, reason: rejectionReason(error) })
     }
     return () => { processor.dispose() }
   }, [metadata.messages, incrementalOnly])
 
   if (incrementalOnly) return <div role="alert" className={css.error}>{copy.incrementalUnavailable}</div>
   if (state === undefined) return <div className={css.root}>{copy.loading ?? ''}</div>
-  if (state.error) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
+  if (state.error) {
+    return <div role="alert" className={css.error}>
+      <div>{copy.renderFailed}</div>
+      <pre className={css.reason}>{state.reason}</pre>
+    </div>
+  }
   if (state.surfaces.length === 0) return <div role="alert" className={css.error}>{copy.renderFailed}</div>
   const theme = readSurfaceTheme(metadata.messages)
   const themed = surfaceThemeStyle(theme)

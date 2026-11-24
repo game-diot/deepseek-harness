@@ -43,6 +43,21 @@
   font-size: 13px;
 }
 
+/* The renderer's own rejection, kept readable instead of swallowed. */
+.reason {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--dsw-alias-font-family-mono, monospace);
+  font-size: 12px;
+  color: var(--dsw-alias-content-secondary);
+  background: var(--dsw-alias-surface-secondary);
+  border-radius: 6px;
+}
+
 .error {
   color: var(--dsw-alias-state-error-primary);
 }
