@@ -5,6 +5,9 @@ import type { CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import { WebServer, type WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { AgentRegistry, type AgentHandle } from '@deepseek-ai/dsh-agent'
 import { describe, expect, it, vi } from 'vitest'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { HttpAgent } from '@ag-ui/client'
 import { apply, type Config } from '../src/index.ts'
 
 class ResponseFixture extends EventEmitter {
@@ -107,6 +110,45 @@ async function post(route: WebRoute | undefined, value: object, response = new R
 }
 
 describe('AG-UI bridge route', () => {
+  it('serves the published AG-UI client over HTTP', async () => {
+    const fixture = setup()
+    await fixture.fiber.await()
+    const route = fixture.route()
+    if (route === undefined) throw new Error('route missing')
+    fixture.create.mockImplementation(async () => handle(fixture.ctx, 'tool').value)
+
+    // A real socket: the published client owns the request, framing, and SSE parse.
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = []
+      req.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      req.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8')
+        const proxied = Object.assign(Readable.from([Buffer.from(body)]), {
+          method: req.method,
+          headers: req.headers,
+        })
+        void route.handler(proxied as never, res as never, peer() as never)
+      })
+    })
+    await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve) })
+    try {
+      const port = (server.address() as AddressInfo).port
+      const agent = new HttpAgent({ url: `http://127.0.0.1:${String(port)}/ag-ui/run`, threadId: 'thread-1', agentId: 'example' })
+      agent.addMessage({ id: 'user-1', role: 'user', content: 'hello' })
+      const seen: string[] = []
+      await agent.runAgent({ runId: 'run-1' }, {
+        onEvent: ({ event }) => { seen.push(event.type) },
+      })
+      expect(seen).toContain('RUN_STARTED')
+      expect(seen).toContain('TOOL_CALL_START')
+      expect(seen).toContain('RUN_FINISHED')
+    } finally {
+      await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
+      await fixture.fiber.dispose()
+    }
+  })
+
+
   it('registers the authenticated route and rejects transport and strict-input violations', async () => {
     const fixture = setup()
     await fixture.fiber.await()
