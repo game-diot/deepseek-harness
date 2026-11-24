@@ -10,8 +10,8 @@ import { A2UI_META_PROTOCOL } from './types.ts'
 /** Cordis plugin name used by Loader diagnostics. */
 export const name = 'a2ui'
 
-/** Tool registry required by this model-facing consumer. */
-export const inject = ['tools']
+/** Tool and prompt registries required by this model-facing consumer. */
+export const inject = ['tools', 'systemPrompt']
 
 /** Deployment-owned message and component limits. */
 export interface Config {
@@ -253,8 +253,18 @@ function composeComplete(messages: readonly unknown[], states: Map<string, Surfa
 }
 
 /** Register the `a2ui_render` tool for this plugin's lifetime. */
+/** Model-facing routing between the renderer and workspace file edits. */
+const GUIDANCE = `Interactive interfaces belong in \`a2ui_render\`, not in workspace files. When the user asks for a card, form, table, checklist, wizard, or dashboard panel, compose the A2UI messages directly in the tool call; do not write generator scripts, HTML, CSS, or JavaScript that produce them, and do not start a preview server.
+
+Write files only for code the user keeps in their project. When both apply, draw the interface first and describe the files afterwards.`
+
 export function apply(ctx: Context, config: Config): void {
   const limits = resolveConfig(config)
+  ctx.systemPrompt.section({
+    name,
+    order: ctx.systemPrompt.getSectionOrder('TOOL_A2UI'),
+    text: GUIDANCE,
+  })
   const surfaceStates = new WeakMap<object, Map<string, SurfaceState>>()
   ctx.tools.register(defineTool({
     name: 'a2ui_render',

@@ -38,6 +38,18 @@
 /deepseek-ai-dsh-a2ui/model-experience/tool-schemas/kv-cache-effect:
   en: 436c78956e60442b
   zh: b8ab0ebe9a6463e1
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section:
+  en: ff23ee0a6ddaf713
+  zh: e7e220108f241b99
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section/what-the-model-sees:
+  en: ab55d39ed9f854b5
+  zh: 3451d015964db254
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section/token-effect:
+  en: 977266597a243f80
+  zh: 35d14d001224865c
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section/kv-cache-effect:
+  en: 278b244c2d1b20dd
+  zh: c8ed18c863da3f35
 /deepseek-ai-dsh-a2ui/model-experience/tool-results-and-task-context:
   en: 54e0c8a019f02479
   zh: 7331b10d1a455d59

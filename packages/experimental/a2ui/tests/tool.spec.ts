@@ -4,7 +4,7 @@ import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as A2ui from '../src/index.ts'
 import { keepReachableFromRoot } from '../src/schema.ts'
 
@@ -81,6 +81,23 @@ const createSurface = {
 }
 
 describe('a2ui_render', () => {
+  it('routes interactive interface requests to the renderer instead of workspace files', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, { personaPrefix: '' })
+    await ctx.plugin(ToolRuntime)
+    const sections: string[] = []
+    const original = ctx.systemPrompt.section.bind(ctx.systemPrompt)
+    vi.spyOn(ctx.systemPrompt, 'section').mockImplementation((section) => {
+      sections.push(typeof section.text === 'string' ? section.text : '')
+      return original(section)
+    })
+
+    await ctx.plugin(A2ui, {})
+
+    expect(sections.join('\n')).toContain('Interactive interfaces belong in `a2ui_render`, not in workspace files.')
+    expect(sections.join('\n')).toContain('do not write generator scripts, HTML, CSS, or JavaScript')
+  })
+
   it('tells the model how to render a successor after a durable A2UI action', async () => {
     const ctx = await setup()
 

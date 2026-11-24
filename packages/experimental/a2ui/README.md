@@ -70,6 +70,20 @@ Fixed schema cost while the tool is visible.
 
 Prefix-stable while the tool definition and visibility remain unchanged.
 
+### Prompt section
+
+#### What the model sees
+
+A prompt section registered at the `TOOL_A2UI` order tells the model that interactive interfaces belong in `a2ui_render`: a card, form, table, checklist, wizard, or dashboard panel is drawn through the tool, and asking for one does not mean writing generator scripts, HTML, CSS, or JavaScript or starting a preview server. Writing files stays reserved for code the user keeps in their project.
+
+#### Token effect
+
+A fixed short paragraph per request while the plugin is mounted.
+
+#### KV Cache effect
+
+Prefix-stable: the section text does not vary between requests.
+
 ### Tool results and task context
 
 #### What the model sees
