@@ -119,15 +119,15 @@ describe('AG-UI bridge route', () => {
 
     // A real socket: the published client owns the request, framing, and SSE parse.
     const server = createServer((req, res) => {
-      const chunks: Buffer[] = []
-      req.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      const chunks: Uint8Array[] = []
+      req.on('data', (chunk: Uint8Array) => { chunks.push(chunk) })
       req.on('end', () => {
         const body = Buffer.concat(chunks).toString('utf8')
         const proxied = Object.assign(Readable.from([Buffer.from(body)]), {
           method: req.method,
           headers: req.headers,
         })
-        void route.handler(proxied as never, res as never, peer() as never)
+        void route.handler(proxied as never, res, peer() as never)
       })
     })
     await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve) })

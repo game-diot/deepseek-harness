@@ -14,6 +14,7 @@ This experimental Host plugin exposes an authenticated AG-UI SSE run endpoint wh
 ## Table of Contents
 
 - [Use this package](#use-this-package)
+- [Consuming this endpoint from another client](#consuming-from-another-client)
 - [Behavior](#behavior)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
@@ -27,6 +28,21 @@ This experimental Host plugin exposes an authenticated AG-UI SSE run endpoint wh
 Mount it only in an experimental profile, set the required `provider` and `model`, and configure `path`, `maxBodyBytes`, `maxThreads`, `maxHistoryBytes`, and `sessionCwd` as needed. `sessionCwd` is the absolute project directory recorded on the Sessions the bridge creates; without it a Session lands in the store's no-cwd bucket, which the Web workspace view cannot open. The named route requires an authenticated Peer, accepts `POST`, validates `RunAgentInput`, rejects concurrent runs on one thread, and disposes every bridge-owned Agent when the plugin unloads.
 
 Set `demo: true` to serve a self-contained page at `<path>/demo` that posts to this endpoint, prints the RAW event stream, and renders the restricted A2UI Basic Catalog subset with a plain DOM renderer. Use it to inspect the bridge from a browser; it is not the product renderer and ships disabled.
+
+<a id="consuming-from-another-client"></a>
+## Consuming this endpoint from another client
+
+Any AG-UI client can render A2UI without importing dsh. Point it at `POST <path>` on an authenticated origin, send a standard `RunAgentInput` with exactly one new user text message, and read the Surface from the run's state:
+
+| What to read | Where it arrives |
+|---|---|
+| A2UI messages for the current Turn | `STATE_SNAPSHOT` → `snapshot.a2ui` (`{ protocol, messages, approval? }`) |
+| Same payload, for clients that only handle custom events | `CUSTOM` with `name: 'a2ui'`, disabled by `emitCustomEvent: false` |
+| Text and Tool activity | standard `TEXT_MESSAGE_*` and `TOOL_CALL_*` events |
+| A paused approval | `RUN_FINISHED` with an `interrupt` outcome; resume by sending the next Run with `resume` |
+
+The page served by `example: true` is that client in full: it imports only `@ag-ui/client`, keeps one `HttpAgent`, and draws components from the snapshots. The `@a2ui/react` renderer accepts the same messages, so a React client swaps the drawing layer without touching the transport.
+
 
 <a id="behavior"></a>
 ## Behavior
