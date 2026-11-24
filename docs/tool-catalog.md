@@ -59,7 +59,7 @@ This table connects model-visible tool names to the plugin package and service s
 
 ### `a2ui_render`
 
-Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible conversation renderer. When a user message starts with `[A2UI action]`, read its JSON and call this tool again with a complete successor Surface when the action changes visible state; do not rewrite the historical Surface.
+Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible conversation renderer. Render repeated content with a ChildList template (`children: {componentId, path}`) and bind each item by a path relative to the item, never an absolute one. When a user message starts with `[A2UI action]`, read its JSON and call this tool again with a complete successor Surface when the action changes visible state; do not rewrite the historical Surface.
 
 ```json
 {
