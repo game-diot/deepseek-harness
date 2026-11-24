@@ -1,13 +1,13 @@
 .root {
   --a2ui-color-background: transparent;
-  --a2ui-color-on-background: var(--dsw-alias-content-primary);
-  --a2ui-color-surface: var(--dsw-alias-surface-secondary);
-  --a2ui-color-on-surface: var(--dsw-alias-content-primary);
-  --a2ui-color-primary: var(--dsw-alias-accent-primary);
-  --a2ui-color-on-primary: var(--dsw-alias-content-on-primary);
-  --a2ui-color-secondary: var(--dsw-alias-surface-tertiary);
-  --a2ui-color-on-secondary: var(--dsw-alias-content-primary);
-  --a2ui-color-border: var(--dsw-alias-border-primary);
+  --a2ui-color-on-background: var(--dsw-alias-label-primary);
+  --a2ui-color-surface: var(--dsw-alias-bg-layer-2);
+  --a2ui-color-on-surface: var(--dsw-alias-label-primary);
+  --a2ui-color-primary: var(--dsw-alias-brand-primary);
+  --a2ui-color-on-primary: var(--dsw-alias-label-on-color);
+  --a2ui-color-secondary: var(--dsw-alias-bg-layer-3);
+  --a2ui-color-on-secondary: var(--dsw-alias-label-primary);
+  --a2ui-color-border: var(--dsw-alias-border-l2);
   --a2ui-border: 1px solid var(--a2ui-color-border);
   --a2ui-font-family-title: inherit;
   --a2ui-font-family-monospace: monospace;
@@ -39,7 +39,7 @@
 .notice,
 .error {
   margin-top: 8px;
-  color: var(--dsw-alias-content-tertiary);
+  color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
 }
 
@@ -51,20 +51,20 @@
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--dsw-alias-font-family-mono, monospace);
+  font-family: monospace;
   font-size: 12px;
-  color: var(--dsw-alias-content-secondary);
-  background: var(--dsw-alias-surface-secondary);
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-layer-2);
   border-radius: 6px;
 }
 
 .error {
-  color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-hovercard-state-error);
 }
 
 /* The action name is copyable and easy to scan next to its confirmation. */
 .actionName {
   margin-left: 4px;
-  font-family: var(--dsw-alias-font-family-mono, monospace);
+  font-family: monospace;
   font-size: 12px;
 }
