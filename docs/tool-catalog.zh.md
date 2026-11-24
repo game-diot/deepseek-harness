@@ -63,7 +63,7 @@
 
 ### `a2ui_render`
 
-校验并持久化声明式 A2UI v1 Basic Catalog 消息，供兼容的对话渲染器使用。重复内容使用 ChildList 模板（`children: {componentId, path}`）渲染，每个条目按相对路径绑定，不要使用绝对路径。当用户消息以 `[A2UI action]` 开头时，读取其中的 JSON；如果该操作改变了可见状态，则再次调用此工具生成完整的后继 Surface，不要改写历史 Surface。任务与指标界面可以使用目录 `https://dsh.dev/a2ui/catalogs/task/v1` 准入的三个业务组件：`StatusBadge`（label、tone）、`Statistic`（label、value、trend、tone）与 `TaskCard`（title、owner、priority、status、child）；使用它们的 Surface 必须指明该目录，Basic Catalog 标识仍然拒绝这些组件。
+校验并持久化声明式 A2UI v1 Basic Catalog 消息，供兼容的对话渲染器使用。重复内容使用 ChildList 模板（`children: {componentId, path}`）渲染，每个条目按相对路径绑定，不要使用绝对路径。当用户消息以 `[A2UI action]` 开头时，读取其中的 JSON；如果该操作改变了可见状态，则再次调用此工具生成完整的后继 Surface，不要改写历史 Surface。任务与指标界面可以使用目录 `https://dsh.dev/a2ui/catalogs/task/v1` 准入的业务组件：`ActionButton`（label、variant、本地 set/toggle 或 Agent event）、`StatusBadge`（label、tone）、`Statistic`（label、value、trend、tone）与 `TaskCard`（title、owner、priority、status、child）；使用它们的 Surface 必须指明该目录，Basic Catalog 标识仍然拒绝这些组件。
 
 ```json
 {

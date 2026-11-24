@@ -56,15 +56,16 @@ The canonical value and metadata use the discriminator `protocol: "a2ui/v1"`. Th
 <a id="business-catalog"></a>
 ## Business catalog
 
-Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with three components for task and metric interfaces:
+Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with four components for task and metric interfaces:
 
 | Component | Fields |
 |---|---|
+| `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
 | `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`), `child` |
 
-A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card.
+A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card. `ActionButton` applies `local:set` and `local:toggle` through the owning Surface data model without contacting the Agent; its `agent` variant dispatches one ordinary A2UI event.
 
 <a id="model-experience"></a>
 ## Model Experience

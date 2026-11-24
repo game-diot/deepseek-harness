@@ -28,6 +28,88 @@ function toneClass(value: string | undefined): string {
   return TONE_CLASS[name] ?? ''
 }
 
+type LocalSetAction = {
+  readonly kind: 'local'
+  readonly operation: 'set'
+  readonly path: string
+  readonly value: unknown
+}
+type LocalToggleAction = {
+  readonly kind: 'local'
+  readonly operation: 'toggle'
+  readonly path: string
+}
+type AgentEventAction = {
+  readonly kind: 'agent'
+  readonly name: string
+  readonly context?: Record<string, unknown>
+}
+type ActionButtonProps = {
+  readonly label: string
+  readonly variant?: 'default' | 'primary' | 'danger' | 'borderless'
+  readonly action: LocalSetAction | LocalToggleAction | AgentEventAction
+}
+type ActionButtonContext = {
+  readonly dataContext: {
+    set(path: string, value: unknown): void
+    resolveDynamicValue(value: unknown): unknown
+  }
+  dispatchAction(action: Record<string, unknown>): Promise<void>
+}
+
+const ACTION_CLASS: Readonly<Record<string, string | undefined>> = {
+  default: css.actionDefault,
+  primary: css.actionPrimary,
+  danger: css.actionDanger,
+  borderless: css.actionBorderless,
+}
+
+/**
+ * Render one business action whose local variants never reach the Agent.
+ * @param props - closed label, visual variant, and action union.
+ * @param context - owning Surface data and Agent action channels.
+ * @returns one themed button.
+ */
+export function ActionButtonView({ props, context }: {
+  readonly props: ActionButtonProps
+  readonly context: ActionButtonContext
+}) {
+  const run = (): void => {
+    if (props.action.kind === 'agent') {
+      void context.dispatchAction({
+        event: {
+          name: props.action.name,
+          ...props.action.context === undefined ? {} : { context: props.action.context },
+        },
+      })
+      return
+    }
+    if (props.action.operation === 'set') {
+      context.dataContext.set(props.action.path, props.action.value)
+      return
+    }
+    const current = context.dataContext.resolveDynamicValue({ '@path': props.action.path })
+    context.dataContext.set(props.action.path, current !== true)
+  }
+  const variant = props.variant ?? 'default'
+  return <button type="button" className={`${css.actionButton} ${ACTION_CLASS[variant] ?? ''}`} onClick={run}>
+    {props.label}
+  </button>
+}
+
+const actionButton = createComponentImplementation({
+  name: 'ActionButton',
+  schema: z.strictObject({
+    label: z.string(),
+    variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+    action: z.union([
+      z.strictObject({ kind: z.literal('local'), operation: z.literal('set'), path: z.string(), value: z.unknown() }),
+      z.strictObject({ kind: z.literal('local'), operation: z.literal('toggle'), path: z.string() }),
+      z.strictObject({ kind: z.literal('agent'), name: z.string(), context: z.record(z.string(), z.unknown()).optional() }),
+    ]),
+  }),
+}, ({ props, context }) => <ActionButtonView props={props as ActionButtonProps} context={context} />)
+
 const badge = createComponentImplementation({
   name: 'StatusBadge',
   schema: z.strictObject({ label: z.string(), tone: tone.optional() }),
@@ -80,7 +162,7 @@ const statistic = createComponentImplementation({
 </div>)
 
 /** Implementations keyed by the name the model sends. */
-export const taskComponents = [badge, taskCard, statistic] as const
+export const taskComponents = [actionButton, badge, taskCard, statistic] as const
 
 /** Children a Surface may place inside a business component. */
 export type BusinessComponentChild = ReactNode

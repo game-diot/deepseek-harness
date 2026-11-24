@@ -43,7 +43,7 @@ Historical metadata is untrusted. Lightweight admission checks framing and detac
 
 Editing a bound value and switching a container update the Surface without a Turn: `TextField`, `CheckBox`, `ChoicePicker`, and `Slider` write their `@path` binding into the card's data model, `ChildList` templates re-expand from it, and `Tabs` switches its own panel. Verified in the browser: typing a name into a `TextField` bound to `/owner` changed a sibling `Text` reading the same path while the Turn count stayed at one.
 
-A `Button` always reaches the Agent. The v1.0 protocol defines `event` and `functionCall`; this implementation only admits `event`, so an action that merely changes what the Surface shows still costs a Turn. Compose such controls from bindings instead of buttons, or accept the Turn and let the Agent render the successor Surface.
+Basic Catalog `Button` always reaches the Agent. The business Catalog's `ActionButton` adds `local:set` and `local:toggle` for display-only changes, while its `agent` variant uses the existing event channel. Use a local action for view state and an Agent action for business operations or model decisions.
 
 <a id="model-experience"></a>
 ## Model Experience
@@ -66,7 +66,7 @@ The browser-only presentation does not alter cache reuse.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Two catalogs** — the lazy renderer draws the Basic Catalog and one business catalog (`https://dsh.dev/a2ui/catalogs/task/v1`) that adds `TaskCard`, `StatusBadge`, and `Statistic`. Business styling lives in this package's CSS Modules and `--dsw-*` tokens, so a Surface cannot choose colours or spacing.
+- **Two catalogs** — the lazy renderer draws the Basic Catalog and one business catalog (`https://dsh.dev/a2ui/catalogs/task/v1`) that adds `ActionButton`, `TaskCard`, `StatusBadge`, and `Statistic`. `ActionButton` handles local set/toggle operations without a Turn and dispatches its Agent variant through the ordinary action channel. Business styling lives in this package's CSS Modules and `--dsw-*` tokens, so a Surface cannot choose colours or spacing.
 - **Message action return only** — completed-Turn buttons submit `userMessage`, or a stable action-name fallback, through the native conversation input; structured A2UI action events are not persisted separately.
 - **Lightweight admission only** — the framing check does not replace official SDK validation.
 

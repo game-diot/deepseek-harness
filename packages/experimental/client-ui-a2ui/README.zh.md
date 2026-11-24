@@ -43,7 +43,7 @@ kind: "package-reference"
 
 修改绑定值与切换容器都不会产生 Turn：`TextField`、`CheckBox`、`ChoicePicker` 与 `Slider` 把 `@path` 绑定写入卡片的数据模型，`ChildList` 模板据此重新展开，`Tabs` 自行切换面板。浏览器实测：在绑定 `/owner` 的 `TextField` 中输入姓名，读取同一路径的兄弟 `Text` 随之变化，而 Turn 数量保持为一。
 
-`Button` 始终会到达 Agent。v1.0 协议定义 `event` 与 `functionCall`；本实现只准入 `event`，因此即使某个按钮只改变 Surface 的显示内容，也要消耗一次 Turn。这类控件请用绑定组合，或接受这次 Turn 由 Agent 渲染后继 Surface。
+Basic Catalog 的 `Button` 始终会到达 Agent。业务目录的 `ActionButton` 新增用于纯显示变化的 `local:set` 与 `local:toggle`，其 `agent` 变体则复用现有事件通道。视图状态使用本地动作，业务操作或模型决策使用 Agent 动作。
 
 <a id="model-experience"></a>
 ## 模型体验
@@ -66,7 +66,7 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `TaskCard`、`StatusBadge` 与 `Statistic`。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
+- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `ActionButton`、`TaskCard`、`StatusBadge` 与 `Statistic`。`ActionButton` 的本地 set/toggle 操作不产生 Turn，Agent 变体则走普通动作通道。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
 - **仅支持消息式 Action 回传**——完成 Turn 的按钮通过原生会话输入提交 `userMessage`，缺失时使用稳定的动作名；尚不单独持久化结构化 A2UI Action 事件。
 - **仅做轻量准入**——帧检查不能替代官方 SDK 校验。
 

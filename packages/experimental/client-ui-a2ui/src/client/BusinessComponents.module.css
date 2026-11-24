@@ -1,5 +1,50 @@
 /* Business components: only tokens the theme defines, no literal colours. */
 
+.actionButton {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-button-elevated-fill);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.actionButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.actionButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-border-selected);
+  outline-offset: 2px;
+}
+
+.actionPrimary {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-on-color);
+}
+
+.actionPrimary:hover {
+  background: var(--dsw-alias-button-primary-hover);
+}
+
+.actionDanger {
+  border-color: var(--dsw-alias-hovercard-state-error);
+  color: var(--dsw-alias-hovercard-state-error);
+}
+
+.actionBorderless {
+  border-color: transparent;
+  background: transparent;
+}
+
+.actionDefault {
+  border-color: var(--dsw-alias-border-l2);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

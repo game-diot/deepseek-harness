@@ -229,6 +229,30 @@ const component = z.discriminatedUnion('component', [
   // Business components of A2UI_TASK_CATALOG_ID.
   z.strictObject({
     id: componentId,
+    component: z.literal('ActionButton'),
+    label: dynamicString,
+    variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+    action: z.union([
+      z.strictObject({
+        kind: z.literal('local'),
+        operation: z.literal('set'),
+        path: z.string().min(1).max(256),
+        value: z.json(),
+      }),
+      z.strictObject({
+        kind: z.literal('local'),
+        operation: z.literal('toggle'),
+        path: z.string().min(1).max(256),
+      }),
+      z.strictObject({
+        kind: z.literal('agent'),
+        name: z.string().min(1).max(128),
+        context: literalObject.optional(),
+      }),
+    ]),
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('StatusBadge'),
     label: dynamicString,
     tone: z.enum(SURFACE_TONE).optional(),
@@ -254,7 +278,7 @@ const component = z.discriminatedUnion('component', [
 ])
 
 /** Component names this renderer adds beside the Basic Catalog. */
-const TASK_COMPONENTS = new Set(['StatusBadge', 'Statistic', 'TaskCard'])
+const TASK_COMPONENTS = new Set(['ActionButton', 'StatusBadge', 'Statistic', 'TaskCard'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
   tone: SURFACE_TONE,
@@ -335,6 +359,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Column': return childIds(value.children)
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
+    case 'ActionButton': return []
     case 'TaskCard': return value.child === undefined ? [] : [value.child]
     case 'StatusBadge': return []
     case 'Statistic': return []
