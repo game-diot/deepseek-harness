@@ -49,6 +49,7 @@ const metadata: A2uiClientEnvelope = {
 const copy = {
   renderFailed: 'This A2UI result cannot be rendered.',
   actionUnavailable: 'This action is not connected to the Agent yet.',
+  actionSent: 'Sent:',
   incrementalUnavailable: 'This result only updates an existing Surface.',
   confirmRequired: 'This action needs your confirmation.',
   confirm: 'Confirm',
@@ -201,7 +202,8 @@ describe('A2UI lazy renderer', () => {
     fireEvent.click(view.getByRole('button', { name: 'card' }))
 
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ userMessage: 'Confirm the task' }))
-    expect(view.queryByRole('status')).toBeNull()
+    // The card confirms the action locally so the click has visible feedback.
+    expect(view.getByRole('status').textContent).toBe(`${copy.actionSent}confirm`)
   })
 
   it('creates an isolated processor for every mounted card', async () => {

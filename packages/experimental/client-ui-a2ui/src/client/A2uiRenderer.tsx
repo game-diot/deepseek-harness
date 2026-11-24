@@ -15,6 +15,8 @@ interface RendererCopy {
   readonly loading?: string
   readonly renderFailed: string
   readonly actionUnavailable: string
+  /** Prefix shown once an action reached the Agent. */
+  readonly actionSent: string
   /** Shown when a result only updates a Surface this renderer never created. */
   readonly incrementalUnavailable: string
   /** Copy for an action that needs explicit confirmation before it is submitted. */
@@ -116,6 +118,7 @@ function acquireStyles(): () => void {
  */
 export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
   const [actionNotice, setActionNotice] = useState<string>()
+  const [sentAction, setSentAction] = useState<string>()
   const [pendingAction, setPendingAction] = useState<ActionPayload>()
   const approval = new Set(metadata.approval ?? [])
   const onActionRef = useRef(onAction)
@@ -133,6 +136,7 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
       const handler = onActionRef.current
       if (handler !== undefined && handler(action)) {
         setActionNotice(undefined)
+        setSentAction(action.name)
         return
       }
       setActionNotice(copy.actionUnavailable)
@@ -171,11 +175,15 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
         const handler = onActionRef.current
         if (handler !== undefined && handler(action)) {
           setActionNotice(undefined)
+          setSentAction(action.name)
           return
         }
         setActionNotice(copy.actionUnavailable)
       }}>{copy.confirm}</button>
       <button type="button" onClick={() => { setPendingAction(undefined) }}>{copy.cancel}</button>
+    </div>}
+    {sentAction !== undefined && <div role="status" className={css.notice}>
+      {copy.actionSent}<code className={css.actionName}>{sentAction}</code>
     </div>}
     {actionNotice !== undefined && <div role="status" className={css.notice}>{actionNotice}</div>}
   </div>

@@ -61,3 +61,10 @@
 .error {
   color: var(--dsw-alias-state-error-primary);
 }
+
+/* The action name is copyable and easy to scan next to its confirmation. */
+.actionName {
+  margin-left: 4px;
+  font-family: var(--dsw-alias-font-family-mono, monospace);
+  font-size: 12px;
+}
