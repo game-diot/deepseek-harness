@@ -62,9 +62,9 @@ Besides the Basic Catalog, the validator admits one business catalog, `https://d
 |---|---|
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
-| `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`) |
+| `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`), `child` |
 
-A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. These components carry no child slot: their actions sit in a sibling `Row` or `Column`.
+A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card.
 
 <a id="model-experience"></a>
 ## Model Experience

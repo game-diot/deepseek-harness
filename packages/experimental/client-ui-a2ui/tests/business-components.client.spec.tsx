@@ -15,8 +15,8 @@ const board = (catalogId: string, components: unknown[]) => ({
 })
 
 const components = [
-  { id: 'root', component: 'Column', children: ['card', 'actions', 'stat'] },
-  { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing' },
+  { id: 'root', component: 'Column', children: ['card', 'stat'] },
+  { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
   { id: 'actions', component: 'Row', children: ['badge', 'done'] },
   { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
   { id: 'done', component: 'Button', child: 'doneLabel', action: { event: { name: 'completeTask' } } },

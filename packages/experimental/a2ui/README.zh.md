@@ -62,9 +62,9 @@ kind: "package-reference"
 |---|---|
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
 | `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
-| `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`） |
+| `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`）、`child` |
 
-指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。这些组件不带子组件槽位：它们的操作按钮放在同级的 `Row` 或 `Column` 中。
+指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。`TaskCard.child` 指向一个放在卡片操作区的组件，因此一排 `Button` 可以位于卡片内部。
 
 <a id="model-experience"></a>
 ## 模型体验

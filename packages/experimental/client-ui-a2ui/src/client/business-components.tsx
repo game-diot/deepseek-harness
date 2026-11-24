@@ -9,6 +9,7 @@
 import type { ReactNode } from 'react'
 import z from 'zod'
 import { createComponentImplementation } from '@a2ui/react'
+import { componentId } from '@a2ui/web_core/v1_0'
 import css from './BusinessComponents.module.css'
 
 /** Tones shared with the `dsh_theme` surface extension. */
@@ -43,8 +44,10 @@ const taskCard = createComponentImplementation({
     owner: z.string().optional(),
     priority: z.enum(['high', 'medium', 'low']).optional(),
     status: z.enum(['todo', 'doing', 'done']).optional(),
+    // `componentId()` marks the property so the binder resolves the id to a node.
+    child: componentId().optional(),
   }),
-}, ({ props }) => <article className={css.taskCard} data-status={props.status ?? 'todo'}>
+}, ({ props, buildChild }) => <article className={css.taskCard} data-status={props.status ?? 'todo'}>
   <header className={css.taskHeader}>
     <h3 className={css.taskTitle}>{props.title}</h3>
     {props.status === undefined ? null : <span className={`${css.badge} ${toneClass(STATUS_TONE[props.status])}`}>
@@ -57,6 +60,7 @@ const taskCard = createComponentImplementation({
       {PRIORITY_LABEL[props.priority] ?? props.priority}
     </span>}
   </div>
+  {props.child === undefined ? null : <div className={css.taskActions}>{buildChild(props.child)}</div>}
 </article>)
 
 const statistic = createComponentImplementation({

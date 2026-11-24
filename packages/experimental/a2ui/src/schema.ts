@@ -248,6 +248,7 @@ const component = z.discriminatedUnion('component', [
     owner: dynamicString.optional(),
     priority: z.enum(['high', 'medium', 'low']).optional(),
     status: z.enum(['todo', 'doing', 'done']).optional(),
+    child: componentId.optional(),
     weight: weight.optional(),
   }),
 ])
@@ -334,7 +335,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Column': return childIds(value.children)
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
-    case 'TaskCard': return []
+    case 'TaskCard': return value.child === undefined ? [] : [value.child]
     case 'StatusBadge': return []
     case 'Statistic': return []
     case 'Divider': return []
