@@ -300,8 +300,13 @@ export class ApiSessionAgentController {
     sessionId: SessionId,
     observation: SessionObservation,
   ): Promise<Agent> {
-    if (observation.header.id !== sessionId || observation.header.cwd === undefined) {
+    if (observation.header.id !== sessionId) {
       throw new ApiSessionNotFound(`session "${sessionId}" not found`)
+    }
+    if (observation.header.cwd === undefined) {
+      throw new ApiSessionNotFound(
+        `session "${sessionId}" records no project directory, so it can only be viewed`,
+      )
     }
     if (hasApiSessionSubagentOwner({ header: observation.header })) {
       throw new ApiSessionSubagentOwnership(sessionId)

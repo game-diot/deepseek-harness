@@ -95,18 +95,19 @@ describe('StateController', () => {
     expect(lookups).toBeGreaterThan(1)
   })
 
-  it('rejects a live state read whose Session records no cwd', async () => {
+  it('reads live state for a Session that records no project directory', async () => {
     const f = await fixture()
     const session = f.ctx.sessions.create(brandString<SessionId>('no-cwd-live'))
     const partial: Partial<Agent> = {
       id: session.id, session, status: 'idle', inbox: createInboxStub(), whenIdle: vi.fn(() => Promise.resolve(undefined)),
     }
     f.setAgent(partial as Agent)
+    // Sessions a client still lists stay openable for reading even without a project directory.
     await expect(f.controller.state({ sessionId: session.id }, new AbortController().signal))
-      .rejects.toMatchObject({ code: 'session/not-found' })
+      .resolves.toMatchObject({ active: true, running: false })
   })
 
-  it('rejects a cold state read whose stored header records no cwd', async () => {
+  it('reads cold state whose stored header records no project directory', async () => {
     const f = await fixture()
     const header: SessionHeader = {
       version: SESSION_FORMAT_VERSION, id: f.session.id, createdAt: 1, isSeeded: false,
@@ -124,7 +125,7 @@ describe('StateController', () => {
     vi.spyOn(f.history, 'usingObservation').mockImplementation(async (_request, _signal, callback) =>
       callback?.(observation))
     await expect(f.controller.state(f.request, new AbortController().signal))
-      .rejects.toMatchObject({ code: 'session/not-found' })
+      .resolves.toMatchObject({ active: false, running: false })
   })
 
   it('reads cold state without projections and reports classified, deduplicated pending input', async () => {
