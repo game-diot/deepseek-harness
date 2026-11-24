@@ -58,7 +58,7 @@ The browser-only presentation does not alter cache reuse.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Basic Catalog only** — the lazy renderer supports the package's admitted Card, Column, Text, and Button subset.
+- **Two catalogs** — the lazy renderer draws the Basic Catalog and one business catalog (`https://dsh.dev/a2ui/catalogs/task/v1`) that adds `TaskCard`, `StatusBadge`, and `Statistic`. Business styling lives in this package's CSS Modules and `--dsw-*` tokens, so a Surface cannot choose colours or spacing.
 - **Message action return only** — completed-Turn buttons submit `userMessage`, or a stable action-name fallback, through the native conversation input; structured A2UI action events are not persisted separately.
 - **Lightweight admission only** — the framing check does not replace official SDK validation.
 

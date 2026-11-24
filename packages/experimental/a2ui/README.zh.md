@@ -53,6 +53,19 @@ kind: "package-reference"
 
 -----
 
+<a id="business-catalog"></a>
+## 业务目录
+
+除 Basic Catalog 外，校验器还准入一个业务目录 `https://dsh.dev/a2ui/catalogs/task/v1`，其中包含三个用于任务与指标界面的组件：
+
+| 组件 | 字段 |
+|---|---|
+| `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
+| `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
+| `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`） |
+
+指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。这些组件不带子组件槽位：它们的操作按钮放在同级的 `Row` 或 `Column` 中。
+
 <a id="model-experience"></a>
 ## 模型体验
 

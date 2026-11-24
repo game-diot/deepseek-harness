@@ -59,7 +59,7 @@ This table connects model-visible tool names to the plugin package and service s
 
 ### `a2ui_render`
 
-Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible conversation renderer. Render repeated content with a ChildList template (`children: {componentId, path}`) and bind each item by a path relative to the item, never an absolute one. When a user message starts with `[A2UI action]`, read its JSON and call this tool again with a complete successor Surface when the action changes visible state; do not rewrite the historical Surface.
+Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible conversation renderer. Render repeated content with a ChildList template (`children: {componentId, path}`) and bind each item by a path relative to the item, never an absolute one. When a user message starts with `[A2UI action]`, read its JSON and call this tool again with a complete successor Surface when the action changes visible state; do not rewrite the historical Surface. Task and metric interfaces may use the three business components admitted under catalog `https://dsh.dev/a2ui/catalogs/task/v1`: `StatusBadge` (label, tone), `Statistic` (label, value, trend, tone), and `TaskCard` (title, owner, priority, status); a Surface that uses them must name that catalog, and the Basic Catalog identifier still refuses them.
 
 ```json
 {
@@ -67,7 +67,7 @@ Validate and persist declarative A2UI v1 Basic Catalog messages for a compatible
   "properties": {
     "messages": {
       "type": "array",
-      "description": "A2UI v1 messages using only the supported Basic Catalog components.",
+      "description": "A2UI v1 messages using only the admitted catalog components.",
       "items": {
         "type": "object",
         "additionalProperties": true

@@ -58,7 +58,7 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **仅支持 Basic Catalog 子集**——懒加载渲染器支持本包准入的 Card、Column、Text 和 Button。
+- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `TaskCard`、`StatusBadge` 与 `Statistic`。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
 - **仅支持消息式 Action 回传**——完成 Turn 的按钮通过原生会话输入提交 `userMessage`，缺失时使用稳定的动作名；尚不单独持久化结构化 A2UI Action 事件。
 - **仅做轻量准入**——帧检查不能替代官方 SDK 校验。
 

@@ -6,7 +6,7 @@ import { SafeMarkdown } from './Markdown.tsx'
 import { readSurfaceTheme, surfaceThemeStyle } from './theme.ts'
 import { injectStyles, removeStyles } from '@a2ui/react/styles'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
-import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
+import { catalogs } from './catalogs.ts'
 import type { ActionPayload } from '@a2ui/web_core/state'
 import type { A2uiClientEnvelope } from './metadata.ts'
 import css from './A2uiRenderer.module.css'
@@ -128,7 +128,7 @@ export function A2uiRenderer({ metadata, copy, onAction }: A2uiRendererProps) {
   useInsertionEffect(() => acquireStyles(), [])
   useEffect(() => {
     if (incrementalOnly) return
-    const processor = new MessageProcessor<ReactCatalogComponent>([basicCatalog], (action) => {
+    const processor = new MessageProcessor<ReactCatalogComponent>(catalogs as never, (action) => {
       if (approval.has(action.name)) {
         setPendingAction(action)
         return

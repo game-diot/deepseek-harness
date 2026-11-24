@@ -53,6 +53,19 @@ The canonical value and metadata use the discriminator `protocol: "a2ui/v1"`. Th
 
 -----
 
+<a id="business-catalog"></a>
+## Business catalog
+
+Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with three components for task and metric interfaces:
+
+| Component | Fields |
+|---|---|
+| `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
+| `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
+| `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`) |
+
+A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. These components carry no child slot: their actions sit in a sibling `Row` or `Column`.
+
 <a id="model-experience"></a>
 ## Model Experience
 

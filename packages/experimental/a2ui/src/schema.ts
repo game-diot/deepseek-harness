@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
-  A2UI_BASIC_CATALOG_ID, A2UI_META_PROTOCOL,
+  A2UI_BASIC_CATALOG_ID, A2UI_META_PROTOCOL, A2UI_TASK_CATALOG_ID,
 } from './types.ts'
 
 const binding = z.strictObject({ '@path': z.string() })
@@ -77,6 +77,9 @@ const checks = z.array(z.strictObject({
   condition: z.union([binding, checkExpression]),
   message: z.string().min(1).max(200).optional(),
 })).min(1).max(8).optional()
+
+/** Tones shared by the theme extension and the business components. */
+const SURFACE_TONE = ['neutral', 'info', 'success', 'warning', 'danger'] as const
 
 const weight = z.number()
 const align = z.enum(['start', 'center', 'end', 'stretch'])
@@ -223,10 +226,37 @@ const component = z.discriminatedUnion('component', [
     action: z.strictObject({ event }),
     weight: weight.optional(),
   }),
+  // Business components of A2UI_TASK_CATALOG_ID.
+  z.strictObject({
+    id: componentId,
+    component: z.literal('StatusBadge'),
+    label: dynamicString,
+    tone: z.enum(SURFACE_TONE).optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Statistic'),
+    label: dynamicString,
+    value: dynamicString,
+    trend: z.strictObject({ direction: z.enum(['up', 'down', 'flat']), text: dynamicString }).optional(),
+    tone: z.enum(SURFACE_TONE).optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('TaskCard'),
+    title: dynamicString,
+    owner: dynamicString.optional(),
+    priority: z.enum(['high', 'medium', 'low']).optional(),
+    status: z.enum(['todo', 'doing', 'done']).optional(),
+    weight: weight.optional(),
+  }),
 ])
+
+/** Component names this renderer adds beside the Basic Catalog. */
+const TASK_COMPONENTS = new Set(['StatusBadge', 'Statistic', 'TaskCard'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
-  tone: ['neutral', 'info', 'success', 'warning', 'danger'],
+  tone: SURFACE_TONE,
   density: ['compact', 'comfortable', 'spacious'],
   textScale: ['sm', 'md', 'lg'],
 } as const
@@ -237,18 +267,38 @@ const surfaceTheme = z.strictObject({
   textScale: z.enum(SURFACE_THEME.textScale).optional(),
 })
 
+/**
+ * Reject a Surface whose components do not belong to the catalog it names.
+ * @param value - one parsed `createSurface` payload.
+ * @param ctx - validation context reporting the offending component.
+ */
+function checkCatalogComponents(
+  value: { catalogId: string; components: readonly { component: string; id: string }[] },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.catalogId !== A2UI_BASIC_CATALOG_ID) return
+  for (const entry of value.components) {
+    if (!TASK_COMPONENTS.has(entry.component)) continue
+    ctx.addIssue({
+      code: 'custom',
+      message: `component "${entry.component}" (${entry.id}) requires catalog ${A2UI_TASK_CATALOG_ID}`,
+      path: ['components'],
+    })
+  }
+}
+
 const createSurfaceMessage = z.strictObject({
   version: z.literal('1.0'),
   createSurface: z.strictObject({
     surfaceId: componentId,
-    catalogId: z.literal(A2UI_BASIC_CATALOG_ID),
+    catalogId: z.union([z.literal(A2UI_BASIC_CATALOG_ID), z.literal(A2UI_TASK_CATALOG_ID)]),
     components: z.array(component).min(1),
     dataModel: z.record(z.string(), z.json()).optional(),
     metadata: z.strictObject({
       extensions: z.strictObject({ dsh_theme: surfaceTheme.optional() }).optional(),
     }).optional(),
   }),
-})
+}).superRefine((value, ctx) => { checkCatalogComponents(value.createSurface, ctx) })
 const message = z.union([
   createSurfaceMessage,
   z.strictObject({
@@ -284,6 +334,9 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Column': return childIds(value.children)
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
+    case 'TaskCard': return []
+    case 'StatusBadge': return []
+    case 'Statistic': return []
     case 'Divider': return []
     case 'Icon': return []
     case 'Image': return []

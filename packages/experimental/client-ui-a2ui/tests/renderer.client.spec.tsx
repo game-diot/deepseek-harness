@@ -31,6 +31,7 @@ vi.mock('@a2ui/web_core/v1_0', () => ({
     dispose = dispose
   },
 }))
+vi.mock('../src/client/catalogs.ts', () => ({ catalogs: [], TASK_CATALOG_ID: 'https://dsh.dev/a2ui/catalogs/task/v1' }))
 vi.mock('@a2ui/web_core/catalogs/basic/v1', () => ({ basicCatalog: {}, injectBasicCatalogStyles: vi.fn() }))
 vi.mock('@a2ui/react', () => ({
   A2uiSurface: ({ surface }: { surface: { id: string } }) => <button onClick={() => processors.at(-1)?.action({

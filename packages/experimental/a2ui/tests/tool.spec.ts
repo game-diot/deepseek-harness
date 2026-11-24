@@ -81,6 +81,38 @@ const createSurface = {
 }
 
 describe('a2ui_render', () => {
+  it('admits the business components under their catalog and refuses them elsewhere', async () => {
+    const ctx = await setup()
+    const taskCatalog = 'https://dsh.dev/a2ui/catalogs/task/v1'
+    const ok = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'board',
+        catalogId: taskCatalog,
+        components: [
+          { id: 'root', component: 'Column', children: ['card', 'actions', 'stat'] },
+          { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing' },
+          { id: 'actions', component: 'Row', children: ['badge', 'done'] },
+          { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
+          { id: 'done', component: 'Button', child: 'doneLabel', action: { event: { name: 'completeTask' } } },
+          { id: 'doneLabel', component: 'Text', text: '完成' },
+          { id: 'stat', component: 'Statistic', label: '任务', value: '4', trend: { direction: 'up', text: '2' } },
+        ],
+      },
+    }])
+    expect(ok.isError).toBe(false)
+
+    const refused = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'basic',
+        catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        components: [{ id: 'root', component: 'TaskCard', title: 'no' }],
+      },
+    }])
+    expect(refused.isError).toBe(true)
+  })
+
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt, { personaPrefix: '' })
