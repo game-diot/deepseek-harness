@@ -34,7 +34,7 @@ kind: "package-reference"
     maxBytes: 65536
 ```
 
-工具接受 A2UI v1 的 `createSurface`、`updateComponents`、`updateDataModel` 和 `deleteSurface` 消息。第一版子集只允许 Basic Catalog 的 `Card`、`Column`、`Text` 和 `Button` 组件。组件列表不能为空；每个 Surface 必须包含规范的 `root`，拒绝重复 id、缺失引用、循环和不可达组件，并在组件更新后重新校验完整组件图。组件和 Surface id 使用 Unicode 标识符语法。Button Action context 值允许 JSON 字面量、数组、普通对象和 `@path` 绑定；函数调用不属于该子集。
+工具接受 A2UI v1 的 `createSurface`、`updateComponents`、`updateDataModel` 和 `deleteSurface` 消息。`createSurface` 准入 Basic Catalog v1.0 的全部组件，以及本包在独立 Catalog id 下提供的三个业务组件。组件列表不能为空；每个 Surface 必须包含规范的 `root`，拒绝重复 id、缺失引用、循环和不可达组件，并在组件更新后重新校验完整组件图。组件与 Surface id 是长度受限且不含控制字符的字符串。Button Action context 值允许 JSON 字面量、数组、普通对象和 `@path` 绑定；本实现只准入 `event` Action 变体，`functionCall` 仍延期。
 
 `maxMessages` 限制单次调用的消息数，`maxComponents` 限制单次调用携带的组件总数，`maxBytes` 限制校验后规范化信封的 UTF-8 大小。非法输入以 code 为 `INVALID_ARGS` 的 `ToolArgsError` 失败；不会发布部分元数据。
 

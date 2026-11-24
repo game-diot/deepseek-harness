@@ -15,6 +15,7 @@ Use this browser plugin beside `dsh-a2ui` to admit replayed `a2ui/v1` metadata, 
 
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
+- [What stays local](#what-stays-local)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
 - [Dev Note](#dev-note)
@@ -37,6 +38,13 @@ Historical metadata is untrusted. Lightweight admission checks framing and detac
 
 -----
 
+<a id="what-stays-local"></a>
+## What stays local
+
+Editing a bound value and switching a container update the Surface without a Turn: `TextField`, `CheckBox`, `ChoicePicker`, and `Slider` write their `@path` binding into the card's data model, `ChildList` templates re-expand from it, and `Tabs` switches its own panel. Verified in the browser: typing a name into a `TextField` bound to `/owner` changed a sibling `Text` reading the same path while the Turn count stayed at one.
+
+A `Button` always reaches the Agent. The v1.0 protocol defines `event` and `functionCall`; this implementation only admits `event`, so an action that merely changes what the Surface shows still costs a Turn. Compose such controls from bindings instead of buttons, or accept the Turn and let the Agent render the successor Surface.
+
 <a id="model-experience"></a>
 ## Model Experience
 
@@ -53,12 +61,6 @@ Zero additional tokens beyond the Host tool.
 #### KV Cache effect
 
 The browser-only presentation does not alter cache reuse.
-
-## What stays local
-
-Editing a bound value and switching a container update the Surface without a Turn: `TextField`, `CheckBox`, `ChoicePicker`, and `Slider` write their `@path` binding into the card's data model, `ChildList` templates re-expand from it, and `Tabs` switches its own panel. Verified in the browser: typing a name into a `TextField` bound to `/owner` changed a sibling `Text` reading the same path while the Turn count stayed at one.
-
-A `Button` always reaches the Agent. The v1.0 `Action` union admits only `event` and `functionCall`, so an action that merely changes what the Surface shows still costs a Turn. Compose such controls from bindings instead of buttons, or accept the Turn and let the Agent render the successor Surface.
 
 ## Known Limitations and Deferred Work
 

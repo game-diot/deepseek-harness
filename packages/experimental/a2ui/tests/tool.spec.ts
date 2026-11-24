@@ -793,6 +793,8 @@ describe('a2ui_render', () => {
     const batches = [
       [{ condition: { '@call': 'fetch', args: { url: 'https://example.com' } } }],
       [{ condition: { '@call': 'regex', args: { value: 'x', pattern: '(?<=x)y' } } }],
+      [{ condition: { '@call': 'regex', args: { value: 'x', pattern: '(?=x)y' } } }],
+      [{ condition: { '@call': 'regex', args: { value: 'x', pattern: '(?!x)y' } } }],
       [{ condition: { '@call': 'regex', args: { value: 'x', pattern: '\\p{L}' } } }],
       [{ condition: { '@call': 'required', args: { value: 'x', extra: true } } }],
       [{ condition: { '@call': 'required' } }],

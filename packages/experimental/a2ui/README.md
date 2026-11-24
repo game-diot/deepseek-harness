@@ -34,7 +34,7 @@ Mount the plugin beside the tool registry:
     maxBytes: 65536
 ```
 
-The tool accepts A2UI v1 `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` messages. The first subset admits only the Basic Catalog `Card`, `Column`, `Text`, and `Button` components. Component lists are non-empty; each Surface contains the canonical `root`, rejects duplicate ids, missing references, cycles, and unreachable components, and revalidates the complete graph after component updates. Component and surface ids use Unicode identifier syntax. Button action context values admit JSON literals, arrays, literal objects, and `@path` bindings; function calls are outside this subset.
+The tool accepts A2UI v1 `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` messages. `createSurface` admits every Basic Catalog v1.0 component plus the package's three business components under their own Catalog id. Component lists are non-empty; each Surface contains the canonical `root`, rejects duplicate ids, missing references, cycles, and unreachable components, and revalidates the complete graph after component updates. Component and surface ids are bounded non-control strings. Button action context values admit JSON literals, arrays, literal objects, and `@path` bindings; this implementation admits only the `event` Action variant, while `functionCall` remains deferred.
 
 `maxMessages` limits messages in one call, `maxComponents` limits the total components carried by that call, and `maxBytes` limits the UTF-8 size of the canonical envelope after validation. Invalid input fails as `ToolArgsError` with code `INVALID_ARGS`; no partial metadata is published.
 

@@ -15,6 +15,7 @@ kind: "package-reference"
 
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
+- [哪些交互留在本地](#what-stays-local)
 - [模型体验](#model-experience)
 - [已知限制与延期工作](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
@@ -37,6 +38,13 @@ kind: "package-reference"
 
 -----
 
+<a id="what-stays-local"></a>
+## 哪些交互留在本地
+
+修改绑定值与切换容器都不会产生 Turn：`TextField`、`CheckBox`、`ChoicePicker` 与 `Slider` 把 `@path` 绑定写入卡片的数据模型，`ChildList` 模板据此重新展开，`Tabs` 自行切换面板。浏览器实测：在绑定 `/owner` 的 `TextField` 中输入姓名，读取同一路径的兄弟 `Text` 随之变化，而 Turn 数量保持为一。
+
+`Button` 始终会到达 Agent。v1.0 协议定义 `event` 与 `functionCall`；本实现只准入 `event`，因此即使某个按钮只改变 Surface 的显示内容，也要消耗一次 Turn。这类控件请用绑定组合，或接受这次 Turn 由 Agent 渲染后继 Surface。
+
 <a id="model-experience"></a>
 ## 模型体验
 
@@ -53,12 +61,6 @@ kind: "package-reference"
 #### KV Cache 影响
 
 仅浏览器展示，不会改变缓存复用。
-
-## 哪些交互留在本地
-
-修改绑定值与切换容器都不会产生 Turn：`TextField`、`CheckBox`、`ChoicePicker` 与 `Slider` 把 `@path` 绑定写入卡片的数据模型，`ChildList` 模板据此重新展开，`Tabs` 自行切换面板。浏览器实测：在绑定 `/owner` 的 `TextField` 中输入姓名，读取同一路径的兄弟 `Text` 随之变化，而 Turn 数量保持为一。
-
-`Button` 始终会到达 Agent。v1.0 的 `Action` 联合类型只接受 `event` 与 `functionCall`，因此即使某个按钮只改变 Surface 的显示内容，也要消耗一次 Turn。这类控件请用绑定组合，或接受这次 Turn 由 Agent 渲染后继 Surface。
 
 ## 已知限制与延期工作
 

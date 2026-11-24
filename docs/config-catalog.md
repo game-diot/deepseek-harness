@@ -14,7 +14,7 @@ Each package entry labels its data with three identifiers: `inject` lists the se
 
 ## `@deepseek-ai/dsh-a2ui`
 
-- `inject`: `tools`
+- `inject`: `tools` · `systemPrompt`
 - `source`: [`packages/experimental/a2ui/src/index.ts:17`](../packages/experimental/a2ui/src/index.ts)
 
 ```ts config-catalog
@@ -4236,7 +4236,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:266`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:267`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */

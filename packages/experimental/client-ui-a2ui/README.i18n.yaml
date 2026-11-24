@@ -12,14 +12,17 @@
   en: 9aa390839801b8ca
   zh: 1d0cee5e4c125a65
 /deepseek-ai-dsh-client-ui-a2ui/table-of-contents:
-  en: 76368b6b1da79c80
-  zh: 52384aee991ac542
+  en: b30def800e0efdaf
+  zh: 6ed01b25bc9cbe48
 /deepseek-ai-dsh-client-ui-a2ui/use-this-package:
   en: 2e4233009c0d19de
   zh: 03f83dba961c2962
 /deepseek-ai-dsh-client-ui-a2ui/understand-the-implementation:
-  en: de553ec129efe221
-  zh: 75184ae3799dae8a
+  en: 8bbbdbf0abaa5a17
+  zh: 500a6eb4a7226f4a
+/deepseek-ai-dsh-client-ui-a2ui/what-stays-local:
+  en: a24183bed56ae597
+  zh: b3a0e82d4848b56b
 /deepseek-ai-dsh-client-ui-a2ui/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -35,9 +38,6 @@
 /deepseek-ai-dsh-client-ui-a2ui/model-experience/browser-presentation/kv-cache-effect:
   en: 7a2de816b453d178
   zh: 0a65800fabea463e
-/deepseek-ai-dsh-client-ui-a2ui/what-stays-local:
-  en: cdcbf4e19662ced4
-  zh: ff0be68206a36917
 /deepseek-ai-dsh-client-ui-a2ui/known-limitations-and-deferred-work:
   en: 7a43518cb84bd56b
   zh: 47f00eb222533ae6

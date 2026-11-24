@@ -35,7 +35,7 @@ const dynamicNumber = z.union([z.number(), binding])
 const dynamicStringList = z.union([z.array(z.string()), binding])
 /** The catalog's regex dialect forbids backreferences, lookarounds, named groups, and Unicode properties. */
 const regexPattern = z.string().min(1).max(256).refine(
-  pattern => !/\\[1-9]|\(\?<|\\p\{/u.test(pattern),
+  pattern => !/\\[1-9]|\(\?(?:[=!]|<[=!]|<[^=!])|\\p\{/u.test(pattern),
   { message: 'the catalog regex dialect forbids backreferences, lookarounds, named groups, and Unicode property escapes' },
 )
 
