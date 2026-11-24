@@ -54,6 +54,12 @@ Zero additional tokens beyond the Host tool.
 
 The browser-only presentation does not alter cache reuse.
 
+## What stays local
+
+Editing a bound value and switching a container update the Surface without a Turn: `TextField`, `CheckBox`, `ChoicePicker`, and `Slider` write their `@path` binding into the card's data model, `ChildList` templates re-expand from it, and `Tabs` switches its own panel. Verified in the browser: typing a name into a `TextField` bound to `/owner` changed a sibling `Text` reading the same path while the Turn count stayed at one.
+
+A `Button` always reaches the Agent. The v1.0 `Action` union admits only `event` and `functionCall`, so an action that merely changes what the Surface shows still costs a Turn. Compose such controls from bindings instead of buttons, or accept the Turn and let the Agent render the successor Surface.
+
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
