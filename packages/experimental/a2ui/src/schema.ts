@@ -261,6 +261,134 @@ const component = z.discriminatedUnion('component', [
   }),
   z.strictObject({
     id: componentId,
+    component: z.literal('Chart'),
+    type: z.enum(['bar', 'line', 'pie']),
+    title: z.string().min(1).max(200),
+    categories: z.array(z.string().min(1).max(40)).max(12),
+    series: z.array(z.strictObject({
+      name: z.string().min(1).max(60),
+      values: z.array(z.number().min(0)).max(12),
+    })).max(4),
+    emptyText: z.string().min(1).max(200),
+    interaction: z.strictObject({
+      label: z.string().min(1).max(100),
+      action: z.strictObject({ name: z.string().min(1).max(128) }),
+    }).optional(),
+  }).superRefine((value, ctx) => {
+    if ((value.categories.length === 0) !== (value.series.length === 0)) {
+      ctx.addIssue({ code: 'custom', message: 'empty Chart categories and series must be empty together', path: ['series'] })
+    }
+    const categories = new Set<string>()
+    for (const [index, category] of value.categories.entries()) {
+      if (categories.has(category)) ctx.addIssue({ code: 'custom', message: `duplicate Chart category "${category}"`, path: ['categories', index] })
+      categories.add(category)
+    }
+    const seriesNames = new Set<string>()
+    for (const [index, item] of value.series.entries()) {
+      if (item.values.length !== value.categories.length) {
+        ctx.addIssue({ code: 'custom', message: `Chart series "${item.name}" values must match categories`, path: ['series', index, 'values'] })
+      }
+      if (seriesNames.has(item.name)) ctx.addIssue({ code: 'custom', message: `duplicate Chart series "${item.name}"`, path: ['series', index, 'name'] })
+      seriesNames.add(item.name)
+    }
+    if (value.type === 'pie' && value.categories.length > 0) {
+      const [pieSeries] = value.series
+      if (value.categories.length < 2 || value.categories.length > 6) {
+        ctx.addIssue({ code: 'custom', message: 'pie Chart requires 2 to 6 categories', path: ['categories'] })
+      }
+      if (value.series.length !== 1) {
+        ctx.addIssue({ code: 'custom', message: 'pie Chart requires exactly one series', path: ['series'] })
+      } else if (pieSeries !== undefined && pieSeries.values.reduce((total, item) => total + item, 0) <= 0) {
+        ctx.addIssue({ code: 'custom', message: 'pie Chart requires a positive total', path: ['series', 0, 'values'] })
+      }
+    }
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('DataTable'),
+    label: z.string().min(1).max(200),
+    columns: z.array(z.strictObject({
+      key: componentId,
+      label: z.string().min(1).max(100),
+      align: z.enum(['start', 'center', 'end']).optional(),
+      sortable: z.boolean().optional(),
+    })).min(1).max(12),
+    rows: z.array(z.strictObject({
+      id: componentId,
+      cells: z.record(componentId, z.union([z.string(), z.number(), z.boolean(), z.null()])),
+    })).max(100),
+    emptyText: z.string().min(1).max(200),
+    filter: z.strictObject({
+      placeholder: z.string().min(1).max(100),
+      clearLabel: z.string().min(1).max(100),
+    }).optional(),
+    selection: z.union([
+      z.strictObject({ mode: z.literal('single'), label: z.string().min(1).max(100) }),
+      z.strictObject({
+        mode: z.literal('multiple'),
+        label: z.string().min(1).max(100),
+        selectAllLabel: z.string().min(1).max(100),
+        actionsLabel: z.string().min(1).max(100).optional(),
+        actions: z.array(z.strictObject({
+          label: z.string().min(1).max(100),
+          name: z.string().min(1).max(128),
+          variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+          confirm: z.strictObject({
+            prompt: z.string().min(1).max(200),
+            confirmLabel: z.string().min(1).max(100),
+            cancelLabel: z.string().min(1).max(100),
+          }).optional(),
+        })).min(1).max(4).optional(),
+      }).superRefine((selection, selectionCtx) => {
+        if ((selection.actionsLabel === undefined) !== (selection.actions === undefined)) {
+          selectionCtx.addIssue({ code: 'custom', message: 'actionsLabel and batch actions must be provided together', path: ['actions'] })
+        }
+        const names = new Set<string>()
+        for (const [index, action] of (selection.actions ?? []).entries()) {
+          if (names.has(action.name)) selectionCtx.addIssue({ code: 'custom', message: `duplicate batch action name "${action.name}"`, path: ['actions', index, 'name'] })
+          names.add(action.name)
+        }
+      }),
+    ]).optional(),
+    actionsLabel: z.string().min(1).max(100).optional(),
+    rowActions: z.array(z.strictObject({
+      label: z.string().min(1).max(100),
+      name: z.string().min(1).max(128),
+      variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+      confirm: z.strictObject({
+        prompt: z.string().min(1).max(200),
+        confirmLabel: z.string().min(1).max(100),
+        cancelLabel: z.string().min(1).max(100),
+      }).optional(),
+    })).min(1).max(4).optional(),
+  }).superRefine((value, ctx) => {
+    const columnKeys = new Set<string>()
+    for (const [index, column] of value.columns.entries()) {
+      if (columnKeys.has(column.key)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate column key "${column.key}"`, path: ['columns', index, 'key'] })
+      }
+      columnKeys.add(column.key)
+    }
+    const rowIds = new Set<string>()
+    for (const [index, row] of value.rows.entries()) {
+      if (rowIds.has(row.id)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate row id "${row.id}"`, path: ['rows', index, 'id'] })
+      }
+      rowIds.add(row.id)
+    }
+    if ((value.actionsLabel === undefined) !== (value.rowActions === undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'actionsLabel and rowActions must be provided together', path: ['rowActions'] })
+    }
+    const actionNames = new Set<string>()
+    for (const [index, action] of (value.rowActions ?? []).entries()) {
+      if (actionNames.has(action.name)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate row action name "${action.name}"`, path: ['rowActions', index, 'name'] })
+      }
+      actionNames.add(action.name)
+    }
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('StatusBadge'),
     label: dynamicString,
     tone: z.enum(SURFACE_TONE).optional(),
@@ -286,7 +414,7 @@ const component = z.discriminatedUnion('component', [
 ])
 
 /** Component names this renderer adds beside the Basic Catalog. */
-const TASK_COMPONENTS = new Set(['ActionButton', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
+const TASK_COMPONENTS = new Set(['ActionButton', 'Chart', 'DataTable', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
   tone: SURFACE_TONE,
@@ -368,6 +496,8 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
     case 'ActionButton': return []
+    case 'Chart': return []
+    case 'DataTable': return []
     case 'Progress': return []
     case 'TaskCard': return value.child === undefined ? [] : [value.child]
     case 'StatusBadge': return []

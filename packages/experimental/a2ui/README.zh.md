@@ -56,17 +56,25 @@ kind: "package-reference"
 <a id="business-catalog"></a>
 ## 业务目录
 
-除 Basic Catalog 外，校验器还准入一个业务目录 `https://dsh.dev/a2ui/catalogs/task/v1`，其中包含五个用于任务与指标界面的组件：
+除 Basic Catalog 外，校验器还准入一个业务目录 `https://dsh.dev/a2ui/catalogs/task/v1`，其中包含七个用于任务与指标界面的组件：
 
 | 组件 | 字段 |
 |---|---|
 | `ActionButton` | `label`、`variant`（`default`/`primary`/`danger`/`borderless`）、`action`（`local:set`、`local:toggle` 或 `agent`） |
+| `Chart` | `type: "bar" | "line" | "pie"`、`title`、分类、非负数值系列、`emptyText`、可选目标 `interaction`；每组系列值数量必须与分类数量一致。环形图要求 2–6 个分类、恰好一个系列且总和为正数 |
+| `DataTable` | `label`、1–12 列及可选本地排序、最多 100 行标量数据、`emptyText`、可选本地筛选与单选/多选、最多四个多选批量动作，以及最多四个 Agent 行级动作；拒绝重复列键、行 id 与动作名 |
 | `Progress` | `label`、可选 `value`/`max`、`tone`；缺少 `value` 时渲染不确定进度 |
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
 | `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
 | `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`）、`child` |
 
 指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。`TaskCard.child` 指向一个放在卡片操作区的组件，因此一排 `Button` 可以位于卡片内部。`ActionButton` 通过所属 Surface 的数据模型执行 `local:set` 与 `local:toggle`，不会联系 Agent；其 `agent` 变体会派发一次普通 A2UI 事件。
+
+`DataTable` 行级动作会发送动作名、所选 `rowId` 与标量行对象。带 `confirm` 的动作先显示本地确认；取消不发送任何内容，确认也只负责派发事件，Client 不会直接修改或删除行。如果同一动作名还配置在 `approvalActions` 中，渲染器外层的审批步骤仍然生效。
+
+`DataTable` 选择使用稳定行 id 作为键，仅保存在 React 本地状态中。排序与筛选会保留已选行；全选只改变当前可见行。选择变化不发送 Agent 动作，也不会跨后继 Surface 保留。多选可暴露批量动作：没有选择时禁用，触发后发送一次包含 `selectedRowIds` 与标量 `selectedRows` 的 Agent 事件。打开和取消确认均为本地操作，只有确认才发送。Client 不修改行、不自行清空选择，而是等待后继 Surface。
+
+`Chart` 准入分组柱状图、折线图与单系列环形图。模型提供标签与有限非负数值，渲染器负责 SVG 坐标、弧段、百分比、系列颜色、主题适配、读屏摘要以及鼠标/键盘数值 Tooltip。Tooltip 状态仅留在本地，不发送 Agent 动作。可选 interaction 让柱、点或弧段通过点击、Enter 或 Space 触发一次 Agent 动作，携带图表类型、分类、系列、索引与数值；环形图目标还携带百分比。Client 不修改图表，而是等待后继 Surface。触摸专用 Tooltip 行为、边缘避让、逐目标动作名、缩放与多选仍留待后续。
 
 <a id="model-experience"></a>
 ## 模型体验

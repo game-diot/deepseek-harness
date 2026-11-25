@@ -93,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart', 'trend', 'distribution'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -102,6 +102,39 @@ describe('a2ui_render', () => {
           { id: 'expand', component: 'ActionButton', label: '展开', action: { kind: 'local', operation: 'toggle', path: '/expanded' } },
           { id: 'stat', component: 'Statistic', label: '任务', value: '4', trend: { direction: 'up', text: '2' } },
           { id: 'progress', component: 'Progress', label: '处理进度', value: 3, max: 4, tone: 'info' },
+          {
+            id: 'table', component: 'DataTable', label: '任务列表',
+            columns: [{ key: 'name', label: '任务', sortable: true }, { key: 'done', label: '完成', align: 'center' }],
+            rows: [{ id: 'T-1', cells: { name: '复盘', done: true } }], emptyText: '暂无任务',
+            filter: { placeholder: '筛选任务', clearLabel: '清空筛选' },
+            selection: {
+              mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务', actionsLabel: '批量操作',
+              actions: [{ label: '批量完成', name: 'completeTasks', variant: 'primary' }],
+            },
+            actionsLabel: '操作',
+            rowActions: [
+              { label: '完成', name: 'completeTask', variant: 'primary' },
+              {
+                label: '删除', name: 'deleteTask', variant: 'danger',
+                confirm: { prompt: '确认删除？', confirmLabel: '确认删除', cancelLabel: '取消' },
+              },
+            ],
+          },
+          {
+            id: 'chart', component: 'Chart', type: 'bar', title: '任务完成量',
+            categories: ['周一', '周二'],
+            series: [{ name: '完成', values: [3, 5] }, { name: '新增', values: [4, 2] }],
+            emptyText: '暂无数据',
+            interaction: { label: '查看任务明细', action: { name: 'showTaskDetails' } },
+          },
+          {
+            id: 'trend', component: 'Chart', type: 'line', title: '任务趋势',
+            categories: ['周一', '周二'], series: [{ name: '完成', values: [3, 5] }], emptyText: '暂无数据',
+          },
+          {
+            id: 'distribution', component: 'Chart', type: 'pie', title: '任务状态分布',
+            categories: ['待处理', '进行中', '已完成'], series: [{ name: '任务数', values: [3, 5, 12] }], emptyText: '暂无任务',
+          },
         ],
       },
     }])
@@ -112,10 +145,147 @@ describe('a2ui_render', () => {
       createSurface: {
         surfaceId: 'basic',
         catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-        components: [{ id: 'root', component: 'TaskCard', title: 'no' }],
+        components: [{
+          id: 'root', component: 'DataTable', label: 'no',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: 'none',
+        }],
       },
     }])
     expect(refused.isError).toBe(true)
+  })
+
+  it.each([
+    {
+      name: 'duplicate column keys',
+      columns: [{ key: 'name', label: '任务' }, { key: 'name', label: '重复' }],
+      rows: [],
+    },
+    {
+      name: 'duplicate row ids',
+      columns: [{ key: 'name', label: '任务' }],
+      rows: [{ id: 'T-1', cells: { name: '一' } }, { id: 'T-1', cells: { name: '二' } }],
+    },
+  ])('rejects DataTable $name', async ({ columns, rows }) => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{ id: 'root', component: 'DataTable', label: '任务列表', columns, rows, emptyText: '暂无任务' }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('duplicate')
+  })
+
+  it.each([
+    {
+      name: 'actions without a heading',
+      extra: { rowActions: [{ label: '完成', name: 'completeTask' }] },
+      error: 'actionsLabel and rowActions must be provided together',
+    },
+    {
+      name: 'duplicate action names',
+      extra: {
+        actionsLabel: '操作',
+        rowActions: [{ label: '完成', name: 'completeTask' }, { label: '再次完成', name: 'completeTask' }],
+      },
+      error: 'duplicate row action name',
+    },
+  ])('rejects DataTable $name', async ({ extra, error }) => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table-actions', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'DataTable', label: '任务列表',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: '暂无任务', ...extra,
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain(error)
+  })
+
+  it('rejects multiple DataTable selection without a select-all label', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table-selection', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'DataTable', label: '任务列表',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: '暂无任务',
+          selection: { mode: 'multiple', label: '选择任务' },
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('selectAllLabel')
+  })
+
+  it('rejects duplicate DataTable batch action names', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table-batch-actions', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'DataTable', label: '任务列表',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: '暂无任务',
+          selection: {
+            mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务', actionsLabel: '批量操作',
+            actions: [{ label: '完成', name: 'completeTasks' }, { label: '再次完成', name: 'completeTasks' }],
+          },
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('duplicate batch action name')
+  })
+
+  it('rejects a Chart series whose values do not match its categories', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'chart', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Chart', type: 'bar', title: '任务完成量',
+          categories: ['周一', '周二'], series: [{ name: '完成', values: [3] }], emptyText: '暂无数据',
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('must match categories')
+  })
+
+  it.each([
+    {
+      name: 'multiple pie series',
+      series: [{ name: '任务数', values: [3, 5] }, { name: '占比', values: [4, 4] }],
+      error: 'exactly one series',
+    },
+    {
+      name: 'an all-zero pie series',
+      series: [{ name: '任务数', values: [0, 0] }],
+      error: 'positive total',
+    },
+  ])('rejects $name', async ({ series, error }) => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'pie', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Chart', type: 'pie', title: '任务状态分布',
+          categories: ['待处理', '已完成'], series, emptyText: '暂无任务',
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain(error)
   })
 
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {

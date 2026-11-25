@@ -56,17 +56,25 @@ The canonical value and metadata use the discriminator `protocol: "a2ui/v1"`. Th
 <a id="business-catalog"></a>
 ## Business catalog
 
-Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with five components for task and metric interfaces:
+Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with seven components for task and metric interfaces:
 
 | Component | Fields |
 |---|---|
 | `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
+| `Chart` | `type: "bar" | "line" | "pie"`, `title`, categories, non-negative numeric series, `emptyText`, optional target `interaction`; each series must match the category count. Pie charts require 2–6 categories, exactly one series, and a positive total |
+| `DataTable` | `label`, 1–12 columns with optional local sorting, up to 100 scalar rows, `emptyText`, optional local filter and single/multiple selection, up to four multiple-selection batch actions, and up to four Agent row actions; duplicate column keys, row ids, and action names are rejected |
 | `Progress` | `label`, optional `value`/`max`, `tone`; missing `value` renders indeterminate progress |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
 | `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`), `child` |
 
 A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card. `ActionButton` applies `local:set` and `local:toggle` through the owning Surface data model without contacting the Agent; its `agent` variant dispatches one ordinary A2UI event.
+
+`DataTable` row actions send their action name with the selected `rowId` and scalar row object. A row action with `confirm` opens a local confirmation first; cancellation sends nothing, and confirmation only dispatches the event—the Client never mutates or deletes a row. If the same action name is also configured in `approvalActions`, the renderer's outer approval step still applies.
+
+`DataTable` selection remains local React state keyed by stable row ids. Sorting and filtering preserve selected rows; select-all changes only currently visible rows. Selection changes send no Agent action and do not survive a successor Surface. Multiple selection may expose batch actions: disabled with no selection, they dispatch one Agent event containing `selectedRowIds` and scalar `selectedRows`. Confirmation opens and cancels locally; only confirmation dispatches. The Client neither mutates rows nor clears selection and waits for a successor Surface.
+
+`Chart` admits grouped bar charts, line charts, and single-series donut charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, arcs, percentages, series colours, theme adaptation, the screen-reader summary, and pointer/keyboard value tooltips. Tooltip state remains local and sends no Agent action. An optional interaction makes bars, points, or segments activate one Agent action by click, Enter, or Space with chart type, category, series, indexes, and value; pie targets also include the percentage. The Client never mutates the chart and waits for a successor Surface. Touch-specific tooltip behavior, edge avoidance, per-target action names, zooming, and multi-selection remain deferred.
 
 <a id="model-experience"></a>
 ## Model Experience
