@@ -93,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart', 'trend', 'distribution'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart', 'trend', 'distribution', 'timeline'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -134,6 +134,13 @@ describe('a2ui_render', () => {
           {
             id: 'distribution', component: 'Chart', type: 'pie', title: '任务状态分布',
             categories: ['待处理', '进行中', '已完成'], series: [{ name: '任务数', values: [3, 5, 12] }], emptyText: '暂无任务',
+          },
+          {
+            id: 'timeline', component: 'Timeline', title: '任务执行记录', emptyText: '暂无执行记录',
+            items: [
+              { id: 'created', title: '任务已创建', time: '10:20', tone: 'neutral' },
+              { id: 'done', title: '分析完成', description: '已完成 3 个数据源', time: '10:25', tone: 'success' },
+            ],
           },
         ],
       },
@@ -243,6 +250,22 @@ describe('a2ui_render', () => {
     }])
     expect(result.isError).toBe(true)
     expect(resultText(result)).toContain('duplicate batch action name')
+  })
+
+  it('rejects duplicate Timeline item ids', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'timeline', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Timeline', title: '执行记录', emptyText: '暂无记录',
+          items: [{ id: 'step', title: '开始' }, { id: 'step', title: '完成' }],
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('duplicate Timeline item id')
   })
 
   it('rejects a Chart series whose values do not match its categories', async () => {

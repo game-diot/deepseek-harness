@@ -403,6 +403,25 @@ const component = z.discriminatedUnion('component', [
   }),
   z.strictObject({
     id: componentId,
+    component: z.literal('Timeline'),
+    title: z.string().min(1).max(200),
+    items: z.array(z.strictObject({
+      id: componentId,
+      title: z.string().min(1).max(200),
+      description: z.string().min(1).max(1000).optional(),
+      time: z.string().min(1).max(100).optional(),
+      tone: z.enum(SURFACE_TONE).optional(),
+    })).max(50),
+    emptyText: z.string().min(1).max(200),
+  }).superRefine((value, ctx) => {
+    const ids = new Set<string>()
+    for (const [index, item] of value.items.entries()) {
+      if (ids.has(item.id)) ctx.addIssue({ code: 'custom', message: `duplicate Timeline item id "${item.id}"`, path: ['items', index, 'id'] })
+      ids.add(item.id)
+    }
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('TaskCard'),
     title: dynamicString,
     owner: dynamicString.optional(),
@@ -414,7 +433,7 @@ const component = z.discriminatedUnion('component', [
 ])
 
 /** Component names this renderer adds beside the Basic Catalog. */
-const TASK_COMPONENTS = new Set(['ActionButton', 'Chart', 'DataTable', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
+const TASK_COMPONENTS = new Set(['ActionButton', 'Chart', 'DataTable', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard', 'Timeline'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
   tone: SURFACE_TONE,
@@ -502,6 +521,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'TaskCard': return value.child === undefined ? [] : [value.child]
     case 'StatusBadge': return []
     case 'Statistic': return []
+    case 'Timeline': return []
     case 'Divider': return []
     case 'Icon': return []
     case 'Image': return []

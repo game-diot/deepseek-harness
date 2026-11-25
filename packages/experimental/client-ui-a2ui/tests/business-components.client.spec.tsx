@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
 import { catalogs, TASK_CATALOG_ID, taskCatalog } from '../src/client/catalogs.ts'
-import { ActionButtonView, BarChartView, DataTableView, LineChartView, PieChartView, ProgressView } from '../src/client/business-components.tsx'
+import { ActionButtonView, BarChartView, DataTableView, LineChartView, PieChartView, ProgressView, TimelineView } from '../src/client/business-components.tsx'
 
 afterEach(cleanup)
 
@@ -35,6 +35,7 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(taskCatalog.components.has('Progress')).toBe(true)
     expect(taskCatalog.components.has('DataTable')).toBe(true)
     expect(taskCatalog.components.has('Chart')).toBe(true)
+    expect(taskCatalog.components.has('Timeline')).toBe(true)
     expect(basicCatalog.components.has('Card')).toBe(true)
     expect(basicCatalog.components.has('TaskCard')).toBe(false)
     expect(catalogs).toHaveLength(2)
@@ -65,6 +66,42 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(indeterminate.hasAttribute('aria-valuetext')).toBe(false)
     expect(pending.queryByText('进行中')).toBeNull()
     expect(indeterminate.getAttribute('data-indeterminate')).toBe('true')
+  })
+
+  it('renders a semantic timeline with tones and one empty state', () => {
+    const timeline = render(<TimelineView
+      title="任务执行记录"
+      items={[
+        { id: 'created', title: '任务已创建', description: '等待执行资源', time: '10:20', tone: 'neutral' },
+        { id: 'running', title: '正在分析数据', description: '已完成 3 个数据源', time: '10:22', tone: 'info' },
+        { id: 'done', title: '分析完成', time: '10:25', tone: 'success' },
+      ]}
+      emptyText="暂无执行记录"
+    />)
+    expect(timeline.getByRole('region', { name: '任务执行记录' })).toBeTruthy()
+    expect(timeline.getByRole('list').tagName).toBe('OL')
+    expect(timeline.getAllByRole('listitem')).toHaveLength(3)
+    expect(timeline.getByText('已完成 3 个数据源')).toBeTruthy()
+    expect(timeline.getByText('10:25')).toBeTruthy()
+    expect(timeline.getAllByTestId('timeline-item').map(item => item.getAttribute('data-tone'))).toEqual([
+      'neutral', 'info', 'success',
+    ])
+    timeline.unmount()
+
+    const empty = render(<TimelineView title="空记录" items={[]} emptyText="暂无执行记录" />)
+    expect(empty.getByText('暂无执行记录')).toBeTruthy()
+    expect(empty.queryByRole('list')).toBeNull()
+  })
+
+  it('refuses duplicate Timeline ids in the Client catalog', () => {
+    const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
+    expect(() => {
+      processor.processMessages([board(TASK_CATALOG_ID, [{
+        id: 'root', component: 'Timeline', title: '执行记录', emptyText: '暂无记录',
+        items: [{ id: 'step', title: '开始' }, { id: 'step', title: '完成' }],
+      }])] as ProcessableMessagePayload)
+    }).toThrow()
+    processor.dispose()
   })
 
   it('renders semantic rows in column order and one spanning empty state', () => {

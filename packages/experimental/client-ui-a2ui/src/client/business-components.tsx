@@ -758,6 +758,65 @@ const badge = createComponentImplementation({
   schema: z.strictObject({ label: z.string(), tone: tone.optional() }),
 }, ({ props }) => <span className={`${css.badge} ${toneClass(props.tone)}`}>{props.label}</span>)
 
+type TimelineProps = {
+  readonly title: string
+  readonly items: readonly {
+    readonly id: string
+    readonly title: string
+    readonly description?: string
+    readonly time?: string
+    readonly tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+  }[]
+  readonly emptyText: string
+}
+
+/**
+ * Render a bounded chronological list with design-owned connectors and tones.
+ * @param props - accessible title, timeline items, and caller-owned empty text.
+ * @returns a semantic region containing an ordered list or its empty state.
+ */
+export function TimelineView({ title, items, emptyText }: TimelineProps) {
+  return <section className={css.timeline} aria-label={title}>
+    <h3 className={css.timelineTitle}>{title}</h3>
+    {items.length === 0 ? <div className={css.timelineEmpty}>{emptyText}</div> : <ol className={css.timelineList}>
+      {items.map(item => <li
+        key={item.id} className={css.timelineItem} data-tone={item.tone ?? 'neutral'} data-testid="timeline-item"
+      >
+        <span className={css.timelineMarker} aria-hidden="true" />
+        <div className={css.timelineContent}>
+          <div className={css.timelineHeading}>
+            <strong>{item.title}</strong>
+            {item.time === undefined ? null : <time>{item.time}</time>}
+          </div>
+          {item.description === undefined ? null : <p>{item.description}</p>}
+        </div>
+      </li>)}
+    </ol>}
+  </section>
+}
+
+const timelineItem = z.strictObject({
+  id: tableId,
+  title: z.string().min(1).max(200),
+  description: z.string().min(1).max(1000).optional(),
+  time: z.string().min(1).max(100).optional(),
+  tone: tone.optional(),
+})
+const timelineProps = z.strictObject({
+  title: z.string().min(1).max(200),
+  items: z.array(timelineItem).max(50),
+  emptyText: z.string().min(1).max(200),
+}).superRefine((value, ctx) => {
+  const ids = new Set<string>()
+  for (const [index, item] of value.items.entries()) {
+    if (ids.has(item.id)) ctx.addIssue({ code: 'custom', message: 'duplicate Timeline item id', path: ['items', index, 'id'] })
+    ids.add(item.id)
+  }
+})
+const timeline = createComponentImplementation({ name: 'Timeline', schema: timelineProps }, ({ props }) => (
+  <TimelineView {...props as TimelineProps} />
+))
+
 const PRIORITY_LABEL: Readonly<Record<string, string>> = { high: 'P0', medium: 'P1', low: 'P2' }
 const STATUS_LABEL: Readonly<Record<string, string>> = { todo: '待处理', doing: '进行中', done: '已完成' }
 const STATUS_TONE: Readonly<Record<string, string>> = { todo: 'neutral', doing: 'info', done: 'success' }
@@ -805,7 +864,7 @@ const statistic = createComponentImplementation({
 </div>)
 
 /** Implementations keyed by the name the model sends. */
-export const taskComponents = [actionButton, chart, dataTable, progress, badge, taskCard, statistic] as const
+export const taskComponents = [actionButton, chart, dataTable, progress, badge, taskCard, statistic, timeline] as const
 
 /** Children a Surface may place inside a business component. */
 export type BusinessComponentChild = ReactNode

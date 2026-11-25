@@ -482,6 +482,95 @@
   text-align: center !important;
 }
 
+.timeline {
+  padding: 14px 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-card-fill);
+}
+
+.timelineTitle {
+  margin: 0 0 14px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.timelineList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timelineItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+  padding-bottom: 18px;
+}
+
+.timelineItem:last-child { padding-bottom: 0; }
+
+.timelineItem:not(:last-child)::after {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: var(--dsw-alias-border-l2);
+  content: '';
+}
+
+.timelineMarker {
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border: 2px solid var(--dsw-alias-label-secondary);
+  border-radius: 50%;
+  background: var(--dsw-alias-card-fill);
+}
+
+.timelineItem[data-tone='info'] .timelineMarker { border-color: var(--dsw-alias-brand-primary); }
+.timelineItem[data-tone='success'] .timelineMarker { border-color: var(--dsw-alias-hovercard-state-done); }
+.timelineItem[data-tone='warning'] .timelineMarker { border-color: var(--dsw-static-amber-400); }
+.timelineItem[data-tone='danger'] .timelineMarker { border-color: var(--dsw-alias-hovercard-state-error); }
+
+.timelineContent { min-width: 0; }
+
+.timelineHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.timelineHeading strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.timelineHeading time {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.timelineContent p {
+  margin: 4px 0 0;
+  color: var(--dsw-alias-label-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.timelineEmpty {
+  padding: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: center;
+}
+
 @keyframes progress-slide {
   from { transform: translateX(-100%); }
   to { transform: translateX(250%); }
