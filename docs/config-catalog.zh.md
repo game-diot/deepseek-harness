@@ -16,8 +16,8 @@
 
 ## `@deepseek-ai/dsh-a2ui`
 
-- `inject`: `tools`
-- `source`: [`packages/experimental/a2ui/src/index.ts:16`](../packages/experimental/a2ui/src/index.ts)
+- `inject`: `tools` · `systemPrompt`
+- `source`: [`packages/experimental/a2ui/src/index.ts:17`](../packages/experimental/a2ui/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned message and component limits. */
@@ -28,6 +28,17 @@ export interface Config {
   maxComponents?: number
   /** Maximum UTF-8 bytes in the canonical envelope. */
   maxBytes?: number
+  /**
+   * Accept incremental messages that target a Surface created in an earlier call.
+   * Leave false when a renderer holds no cross-turn Surface state: such an envelope
+   * cannot be rendered from scratch.
+   */
+  allowIncremental?: boolean
+  /**
+   * Button action names that a renderer must confirm before submitting.
+   * Matched names are recorded in the Tool result metadata as `approval`.
+   */
+  approvalActions?: string[]
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-a2ui -->
@@ -62,7 +73,7 @@ export interface AcpConfig {
 ## `@deepseek-ai/dsh-ag-ui-bridge`
 
 - `inject`: `webServer` · `agents`
-- `source`: [`packages/experimental/ag-ui-bridge/src/index.ts:27`](../packages/experimental/ag-ui-bridge/src/index.ts)
+- `source`: [`packages/experimental/ag-ui-bridge/src/index.ts:47`](../packages/experimental/ag-ui-bridge/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned endpoint and input bounds. */
@@ -77,10 +88,29 @@ export interface Config {
   model: string
   /** Maximum process-local authenticated Thread bindings. */
   maxThreads?: number
+  /**
+   * Absolute project directory recorded on the Sessions this bridge creates, so the
+   * resulting Sessions group under that workspace instead of the no-cwd bucket.
+   * Defaults to the host process working directory.
+   */
+  sessionCwd?: string
+  /** Emit the canonical A2UI payload as an AG-UI state snapshot. Defaults to true. */
+  emitStateSnapshot?: boolean
+  /** Emit the bridge-specific `CUSTOM` a2ui event. Defaults to true. */
+  emitCustomEvent?: boolean
+  /**
+   * Turn a Tool approval question into an AG-UI interrupt: the Run ends with an
+   * interrupt outcome and the next Run on that thread answers it through `resume`.
+   */
+  interruptOnApproval?: boolean
+  /** How long a pending interrupt waits for its resume before it is cancelled. */
+  interruptTimeoutMs?: number
   /** Maximum recorded Thread history bytes carried by one Run request. */
   maxHistoryBytes?: number
   /** Serve a self-contained `/demo` page beside the run endpoint. */
   demo?: boolean
+  /** Serve the standalone example that uses the published AG-UI client only. */
+  example?: boolean
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-ag-ui-bridge -->
@@ -4208,7 +4238,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:266`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:267`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */

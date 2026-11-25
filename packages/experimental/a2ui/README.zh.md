@@ -34,7 +34,7 @@ kind: "package-reference"
     maxBytes: 65536
 ```
 
-工具接受 A2UI v1 的 `createSurface`、`updateComponents`、`updateDataModel` 和 `deleteSurface` 消息。第一版子集只允许 Basic Catalog 的 `Card`、`Column`、`Text` 和 `Button` 组件。组件列表不能为空；每个 Surface 必须包含规范的 `root`，拒绝重复 id、缺失引用、循环和不可达组件，并在组件更新后重新校验完整组件图。组件和 Surface id 使用 Unicode 标识符语法。Button Action context 值允许 JSON 字面量、数组、普通对象和 `@path` 绑定；函数调用不属于该子集。
+工具接受 A2UI v1 的 `createSurface`、`updateComponents`、`updateDataModel` 和 `deleteSurface` 消息。`createSurface` 准入 Basic Catalog v1.0 的全部组件，以及本包在独立 Catalog id 下提供的三个业务组件。组件列表不能为空；每个 Surface 必须包含规范的 `root`，拒绝重复 id、缺失引用、循环和不可达组件，并在组件更新后重新校验完整组件图。组件与 Surface id 是长度受限且不含控制字符的字符串。Button Action context 值允许 JSON 字面量、数组、普通对象和 `@path` 绑定；本实现只准入 `event` Action 变体，`functionCall` 仍延期。
 
 `maxMessages` 限制单次调用的消息数，`maxComponents` 限制单次调用携带的组件总数，`maxBytes` 限制校验后规范化信封的 UTF-8 大小。非法输入以 code 为 `INVALID_ARGS` 的 `ToolArgsError` 失败；不会发布部分元数据。
 
@@ -53,6 +53,20 @@ kind: "package-reference"
 
 -----
 
+<a id="business-catalog"></a>
+## 业务目录
+
+除 Basic Catalog 外，校验器还准入一个业务目录 `https://dsh.dev/a2ui/catalogs/task/v1`，其中包含四个用于任务与指标界面的组件：
+
+| 组件 | 字段 |
+|---|---|
+| `ActionButton` | `label`、`variant`（`default`/`primary`/`danger`/`borderless`）、`action`（`local:set`、`local:toggle` 或 `agent`） |
+| `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
+| `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
+| `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`）、`child` |
+
+指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。`TaskCard.child` 指向一个放在卡片操作区的组件，因此一排 `Button` 可以位于卡片内部。`ActionButton` 通过所属 Surface 的数据模型执行 `local:set` 与 `local:toggle`，不会联系 Agent；其 `agent` 变体会派发一次普通 A2UI 事件。
+
 <a id="model-experience"></a>
 ## 模型体验
 
@@ -69,6 +83,20 @@ kind: "package-reference"
 #### KV Cache 影响
 
 工具定义与可见性不变时，前缀保持稳定。
+
+### 提示词小节
+
+#### 模型看到什么
+
+插件在 `TOOL_A2UI` 位置注册一个提示词小节，说明交互式界面应由 `a2ui_render` 承接：卡片、表单、表格、清单、向导或仪表盘面板都通过该工具绘制，用户提出这类需求并不意味着要写生成脚本、HTML、CSS 或 JavaScript，也不意味着要启动预览服务。写文件只保留给用户会留在项目里的代码。
+
+#### Token 影响
+
+插件挂载期间，每次请求增加一段固定的短文本。
+
+#### KV Cache 影响
+
+前缀稳定：小节文本在请求之间不变。
 
 ### 工具结果与任务上下文
 
@@ -89,9 +117,16 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - **独立 Client 渲染器**——本 Host 包持久化元数据；可选 `dsh-client-ui-a2ui` 包负责渲染。
-- **受限协议子集**——Basic Catalog v1.0 的全部组件及其目录字段与数据模型绑定均已准入。渲染器 `checks`、数据驱动 `ChildList` 模板与 AG-UI 状态快照/增量仍延期；任意 CSS、内嵌 HTML 与动画按设计不在目录内，目录的样式面只有 `variant`、`weight`、`justify`、`align`、`fit`、`axis`、`direction`。
+- **受限协议子集**——Basic Catalog v1.0 的全部组件及其目录字段、数据模型绑定与数据驱动 `ChildList` 模板均已准入，可校验组件还支持渲染器侧 `checks`。校验仅接受目录的 `required`、`regex`、`length`、`numeric`、`email`、`and`、`or`、`not`；正则方言拒绝反向引用、前后瞻、命名组与 Unicode 属性转义，格式化与动作类函数仍延期。AG-UI 状态快照/增量同样延期；任意 CSS、内嵌 HTML 与动画按设计不在目录内，目录的样式面只有 `variant`、`weight`、`justify`、`align`、`fit`、`axis`、`direction`。
+
+- **模板内绑定为相对路径**——`ChildList` 模板中渲染器按数据项解析绑定，绝对路径会渲染为空；Host 直接拒绝，而不是产出静默空白格。
+
 - **基于消息的 Action 回传**——可选 Client 通过原生用户消息提交有界结构化 Action；目前没有专用 Session 事件。
 - **仅内联 Markdown**——渲染器支持 `strong`、`emphasis`、`code` 与换行；HTML、图片与链接保持字面文本，与目录声明的 Markdown 限制一致。
+- **Surface 主题 token**——`createSurface.metadata.extensions.dsh_theme` 携带封闭的 `tone`（`neutral`/`info`/`success`/`warning`/`danger`）、`density`（`compact`/`comfortable`/`spacious`）与 `textScale`（`sm`/`md`/`lg`）token，渲染器把它们映射到目录的间距、字号与强调色。自由颜色、尺寸与 CSS 仍被拒绝。
+- **Action 审批**——在 `approvalActions` 里配置需要渲染器先确认的 Button action 名称。命中的名称会写入工具结果 metadata 的 `approval` 字段，客户端在提交前展示确认步骤。
+- **开启增量后会组合出完整后继 surface**——启用 `allowIncremental` 时，工具按 Session 记住每个 Surface（上限 32），把 `updateComponents`、`updateDataModel`、`deleteSurface` 组合成完整的 `createSurface`，任何渲染器都能从零绘制，无状态客户端也得到同样结果。默认为 `false`，此时这类调用会失败并提示发送完整的 `createSurface`。
+- **增量消息只做形状校验**——工具按 Session 记住最多 32 个 surface id，因此 `updateComponents`、`updateDataModel` 与 `deleteSurface` 可以指向更早调用创建的 surface。这类跨调用消息只校验组件形状，因为本次调用没有该 surface 的图；完整图校验由 Client 渲染器负责。该记忆为进程生命周期、按 Session 隔离。
 
 <a id="dev-note"></a>
 ### 开发备注

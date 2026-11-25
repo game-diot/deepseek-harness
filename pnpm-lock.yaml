@@ -9168,6 +9168,9 @@ importers:
         specifier: 4.6.6
         version: 4.6.6
     devDependencies:
+      '@a2ui/web_core':
+        specifier: 0.15.0
+        version: 0.15.0
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis

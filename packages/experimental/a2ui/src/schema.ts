@@ -3,12 +3,21 @@
 import { z } from 'zod'
 import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
-  A2UI_BASIC_CATALOG_ID, A2UI_META_PROTOCOL,
+  A2UI_BASIC_CATALOG_ID, A2UI_META_PROTOCOL, A2UI_TASK_CATALOG_ID,
 } from './types.ts'
 
 const binding = z.strictObject({ '@path': z.string() })
 // The catalog admits any string id; bound the length and reject control characters.
 const componentId = z.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u)
+
+/**
+ * Catalog `ChildList`: static child ids, or a template component rendered once per
+ * data-model entry at `path`.
+ */
+const childList = z.union([
+  z.array(componentId),
+  z.strictObject({ componentId, path: z.string().min(1) }),
+])
 const literalObject = z.record(z.string(), z.json()).refine(value => (
   Object.keys(value).every(key => !/^@(?:[^@]|$)/u.test(key))
 ))
@@ -24,6 +33,54 @@ const dynamicString = z.union([z.string(), binding])
 const dynamicBoolean = z.union([z.boolean(), binding])
 const dynamicNumber = z.union([z.number(), binding])
 const dynamicStringList = z.union([z.array(z.string()), binding])
+/** The catalog's regex dialect forbids backreferences, lookarounds, named groups, and Unicode properties. */
+const regexPattern = z.string().min(1).max(256).refine(
+  pattern => !/\\[1-9]|\(\?(?:[=!]|<[=!]|<[^=!])|\\p\{/u.test(pattern),
+  { message: 'the catalog regex dialect forbids backreferences, lookarounds, named groups, and Unicode property escapes' },
+)
+
+const checkExpression = z.lazy((): z.ZodType => z.union([
+  z.strictObject({ '@call': z.literal('required'), args: z.strictObject({ value: z.json() }) }),
+  z.strictObject({
+    '@call': z.literal('regex'),
+    args: z.strictObject({ value: dynamicString, pattern: regexPattern }),
+  }),
+  z.strictObject({
+    '@call': z.literal('length'),
+    args: z.strictObject({
+      value: dynamicString,
+      min: z.number().int().min(0).optional(),
+      max: z.number().int().min(0).optional(),
+    }),
+  }),
+  z.strictObject({
+    '@call': z.literal('numeric'),
+    args: z.strictObject({
+      value: dynamicNumber,
+      min: z.number().optional(),
+      max: z.number().optional(),
+    }),
+  }),
+  z.strictObject({ '@call': z.literal('email'), args: z.strictObject({ value: dynamicString }) }),
+  z.strictObject({
+    '@call': z.literal('and'),
+    args: z.strictObject({ values: z.array(dynamicCheckValue).min(2) }),
+  }),
+  z.strictObject({
+    '@call': z.literal('or'),
+    args: z.strictObject({ values: z.array(dynamicCheckValue).min(2) }),
+  }),
+  z.strictObject({ '@call': z.literal('not'), args: z.strictObject({ value: dynamicCheckValue }) }),
+]))
+const dynamicCheckValue = z.lazy((): z.ZodType => z.union([z.boolean(), binding, checkExpression]))
+const checks = z.array(z.strictObject({
+  condition: z.union([binding, checkExpression]),
+  message: z.string().min(1).max(200).optional(),
+})).min(1).max(8).optional()
+
+/** Tones shared by the theme extension and the business components. */
+const SURFACE_TONE = ['neutral', 'info', 'success', 'warning', 'danger'] as const
+
 const weight = z.number()
 const align = z.enum(['start', 'center', 'end', 'stretch'])
 const justify = z.enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
@@ -32,7 +89,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Column'),
-    children: z.array(componentId),
+    children: childList,
     justify: justify.optional(),
     align: align.optional(),
     weight: weight.optional(),
@@ -40,7 +97,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Row'),
-    children: z.array(componentId),
+    children: childList,
     justify: justify.optional(),
     align: align.optional(),
     weight: weight.optional(),
@@ -57,7 +114,7 @@ const component = z.discriminatedUnion('component', [
     url: dynamicString,
     description: dynamicString.optional(),
     fit: z.enum(['contain', 'cover', 'fill', 'none', 'scaleDown']).optional(),
-    variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'hero']).optional(),
+    variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header']).optional(),
     weight: weight.optional(),
   }),
   z.strictObject({
@@ -69,6 +126,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('TextField'),
+    checks,
     label: dynamicString,
     value: dynamicString,
     placeholder: dynamicString.optional(),
@@ -78,6 +136,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('CheckBox'),
+    checks,
     label: dynamicString,
     value: dynamicBoolean,
     weight: weight.optional(),
@@ -85,6 +144,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('ChoicePicker'),
+    checks,
     label: dynamicString,
     options: z.array(z.strictObject({ label: dynamicString, value: z.string() })).min(1),
     value: dynamicStringList,
@@ -95,6 +155,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Slider'),
+    checks,
     label: dynamicString.optional(),
     min: z.number().optional(),
     max: z.number(),
@@ -105,7 +166,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('List'),
-    children: z.array(componentId),
+    children: childList,
     direction: z.enum(['vertical', 'horizontal']).optional(),
     align: align.optional(),
     weight: weight.optional(),
@@ -126,6 +187,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('DateTimeInput'),
+    checks,
     value: dynamicString,
     label: dynamicString.optional(),
     enableDate: z.boolean().optional(),
@@ -158,21 +220,110 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Button'),
+    checks,
     child: componentId,
     variant: z.enum(['default', 'primary', 'borderless']).optional(),
     action: z.strictObject({ event }),
     weight: weight.optional(),
   }),
+  // Business components of A2UI_TASK_CATALOG_ID.
+  z.strictObject({
+    id: componentId,
+    component: z.literal('ActionButton'),
+    label: dynamicString,
+    variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+    action: z.union([
+      z.strictObject({
+        kind: z.literal('local'),
+        operation: z.literal('set'),
+        path: z.string().min(1).max(256),
+        value: z.json(),
+      }),
+      z.strictObject({
+        kind: z.literal('local'),
+        operation: z.literal('toggle'),
+        path: z.string().min(1).max(256),
+      }),
+      z.strictObject({
+        kind: z.literal('agent'),
+        name: z.string().min(1).max(128),
+        context: literalObject.optional(),
+      }),
+    ]),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('StatusBadge'),
+    label: dynamicString,
+    tone: z.enum(SURFACE_TONE).optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('Statistic'),
+    label: dynamicString,
+    value: dynamicString,
+    trend: z.strictObject({ direction: z.enum(['up', 'down', 'flat']), text: dynamicString }).optional(),
+    tone: z.enum(SURFACE_TONE).optional(),
+  }),
+  z.strictObject({
+    id: componentId,
+    component: z.literal('TaskCard'),
+    title: dynamicString,
+    owner: dynamicString.optional(),
+    priority: z.enum(['high', 'medium', 'low']).optional(),
+    status: z.enum(['todo', 'doing', 'done']).optional(),
+    child: componentId.optional(),
+    weight: weight.optional(),
+  }),
 ])
+
+/** Component names this renderer adds beside the Basic Catalog. */
+const TASK_COMPONENTS = new Set(['ActionButton', 'StatusBadge', 'Statistic', 'TaskCard'])
+/** Closed token sets for the `dsh_theme` surface extension. */
+export const SURFACE_THEME = {
+  tone: SURFACE_TONE,
+  density: ['compact', 'comfortable', 'spacious'],
+  textScale: ['sm', 'md', 'lg'],
+} as const
+
+const surfaceTheme = z.strictObject({
+  tone: z.enum(SURFACE_THEME.tone).optional(),
+  density: z.enum(SURFACE_THEME.density).optional(),
+  textScale: z.enum(SURFACE_THEME.textScale).optional(),
+})
+
+/**
+ * Reject a Surface whose components do not belong to the catalog it names.
+ * @param value - one parsed `createSurface` payload.
+ * @param ctx - validation context reporting the offending component.
+ */
+function checkCatalogComponents(
+  value: { catalogId: string; components: readonly { component: string; id: string }[] },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.catalogId !== A2UI_BASIC_CATALOG_ID) return
+  for (const entry of value.components) {
+    if (!TASK_COMPONENTS.has(entry.component)) continue
+    ctx.addIssue({
+      code: 'custom',
+      message: `component "${entry.component}" (${entry.id}) requires catalog ${A2UI_TASK_CATALOG_ID}`,
+      path: ['components'],
+    })
+  }
+}
+
 const createSurfaceMessage = z.strictObject({
   version: z.literal('1.0'),
   createSurface: z.strictObject({
     surfaceId: componentId,
-    catalogId: z.literal(A2UI_BASIC_CATALOG_ID),
+    catalogId: z.union([z.literal(A2UI_BASIC_CATALOG_ID), z.literal(A2UI_TASK_CATALOG_ID)]),
     components: z.array(component).min(1),
     dataModel: z.record(z.string(), z.json()).optional(),
+    metadata: z.strictObject({
+      extensions: z.strictObject({ dsh_theme: surfaceTheme.optional() }).optional(),
+    }).optional(),
   }),
-})
+}).superRefine((value, ctx) => { checkCatalogComponents(value.createSurface, ctx) })
 const message = z.union([
   createSurfaceMessage,
   z.strictObject({
@@ -195,13 +346,23 @@ const envelope = z.strictObject({
 
 type ParsedEnvelope = z.infer<typeof envelope>
 type ParsedComponent = z.infer<typeof component>
+type ParsedChildList = z.infer<typeof childList>
+
+function childIds(children: ParsedChildList | undefined): readonly string[] {
+  if (children === undefined) return []
+  return Array.isArray(children) ? children : [children.componentId]
+}
 
 function referencedIds(value: ParsedComponent): readonly string[] {
   switch (value.component) {
     case 'Card': return [value.child]
-    case 'Column': return value.children
-    case 'Row': return value.children
+    case 'Column': return childIds(value.children)
+    case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
+    case 'ActionButton': return []
+    case 'TaskCard': return value.child === undefined ? [] : [value.child]
+    case 'StatusBadge': return []
+    case 'Statistic': return []
     case 'Divider': return []
     case 'Icon': return []
     case 'Image': return []
@@ -209,7 +370,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'CheckBox': return []
     case 'ChoicePicker': return []
     case 'Slider': return []
-    case 'List': return value.children
+    case 'List': return childIds(value.children)
     case 'Tabs': return value.tabs.map(tab => tab.child)
     case 'Modal': return [value.trigger, value.content]
     case 'DateTimeInput': return []
@@ -217,6 +378,98 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'AudioPlayer': return []
     case 'Text': return []
   }
+}
+
+function collectBindingPaths(value: unknown, visit: (path: string) => void): void {
+  if (Array.isArray(value)) {
+    for (const item of value) collectBindingPaths(item, visit)
+    return
+  }
+  if (typeof value !== 'object' || value === null) return
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === '@path' && typeof entry === 'string') {
+      visit(entry)
+      continue
+    }
+    collectBindingPaths(entry, visit)
+  }
+}
+
+/**
+ * Reject absolute bindings inside a template: the renderer resolves them against the
+ * Surface data model rather than the item, which silently renders empty values.
+ */
+function assertTemplateBindingsRelative(
+  surfaceId: string,
+  components: ReadonlyMap<string, ParsedComponent>,
+): void {
+  const queue: string[] = []
+  for (const component of components.values()) {
+    if ('children' in component && !Array.isArray(component.children)) queue.push(component.children.componentId)
+  }
+  while (queue.length > 0) {
+    const id = queue.pop()
+    /* v8 ignore next -- the loop condition proves an id is present. */
+    if (id === undefined) break
+    const item = components.get(id)
+    /* v8 ignore next -- the traversal above rejects a missing component before this walk. */
+    if (item === undefined) continue
+    collectBindingPaths(item, (path) => {
+      if (path.startsWith('/')) {
+        throw new Error(`surface "${surfaceId}" template component "${id}" binds "${path}"; bindings inside a ChildList template are relative to the item`)
+      }
+    })
+    queue.push(...referencedIds(item))
+  }
+}
+
+/**
+ * Drop components that no path reaches from `root`.
+ * A composed Surface merges older and newer components, so replaced branches can
+ * leave orphans that renderers reject.
+ * @param components - the merged component list in insertion order.
+ * @returns the reachable components in the original order.
+ */
+export function keepReachableFromRoot(components: readonly unknown[]): unknown[] {
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const component of components) {
+    if (typeof component !== 'object' || component === null) continue
+    const id = (component as Record<string, unknown>).id
+    if (typeof id === 'string') byId.set(id, component as Record<string, unknown>)
+  }
+  if (!byId.has('root')) return [...components]
+  const reachable = new Set<string>()
+  const queue = ['root']
+  while (queue.length > 0) {
+    const id = queue.pop()
+    /* v8 ignore next -- the loop condition proves an id is present. */
+    if (id === undefined || reachable.has(id)) continue
+    reachable.add(id)
+    const component = byId.get(id)
+    /* v8 ignore next -- only ids recorded from this map enter the queue. */
+    if (component === undefined) continue
+    for (const reference of childIds(component.children as ParsedChildList | undefined)) {
+      queue.push(reference)
+    }
+    for (const key of ['child', 'trigger', 'content'] as const) {
+      const value = component[key]
+      if (typeof value === 'string') queue.push(value)
+    }
+    const tabs = component.tabs
+    if (Array.isArray(tabs)) {
+      for (const tab of tabs) {
+        if (typeof tab === 'object' && tab !== null) {
+          const child = (tab as { child?: unknown }).child
+          if (typeof child === 'string') queue.push(child)
+        }
+      }
+    }
+  }
+  return components.filter(component => (
+    typeof component === 'object' && component !== null
+    && typeof (component as { id?: unknown }).id === 'string'
+    && reachable.has((component as { id: string }).id)
+  ))
 }
 
 function validateSurfaceGraph(surfaceId: string, components: ReadonlyMap<string, ParsedComponent>): void {
@@ -247,6 +500,7 @@ function validateSurfaceGraph(surfaceId: string, components: ReadonlyMap<string,
     if (orphan === undefined) throw new Error('unreachable component is missing')
     throw new Error(`surface "${surfaceId}" contains unreachable component "${orphan}"`)
   }
+  assertTemplateBindingsRelative(surfaceId, components)
 }
 
 function componentMap(surfaceId: string, components: readonly ParsedComponent[]): Map<string, ParsedComponent> {
@@ -258,7 +512,14 @@ function componentMap(surfaceId: string, components: readonly ParsedComponent[])
   return result
 }
 
-function validateComponentGraph(value: ParsedEnvelope): void {
+/**
+ * Validate the component graph across the messages of one call.
+ * @param value - the parsed envelope.
+ * @param known - surfaces this session created in earlier calls; when a message
+ *   targets one of them, only its component shapes are checked because this call
+ *   holds no graph for that surface.
+ */
+function validateComponentGraph(value: ParsedEnvelope, known?: Set<string>): void {
   const surfaces = new Map<string, Map<string, ParsedComponent>>()
   for (const messageValue of value.messages) {
     if ('createSurface' in messageValue) {
@@ -267,17 +528,28 @@ function validateComponentGraph(value: ParsedEnvelope): void {
       const graph = componentMap(surfaceId, components)
       validateSurfaceGraph(surfaceId, graph)
       surfaces.set(surfaceId, graph)
+      known?.add(surfaceId)
     } else if ('updateComponents' in messageValue) {
       const { surfaceId, components } = messageValue.updateComponents
       const graph = surfaces.get(surfaceId)
-      if (graph === undefined) throw new Error(`updateComponents references unknown surface "${surfaceId}"`)
+      if (graph === undefined) {
+        if (known === undefined || !known.has(surfaceId)) {
+          throw new Error(`updateComponents references surface "${surfaceId}" that this call does not create; send a complete createSurface instead`)
+        }
+        componentMap(surfaceId, components)
+        continue
+      }
       const updates = componentMap(surfaceId, components)
       for (const [id, item] of updates) graph.set(id, item)
       validateSurfaceGraph(surfaceId, graph)
     } else if ('deleteSurface' in messageValue) {
       surfaces.delete(messageValue.deleteSurface.surfaceId)
-    } else if ('updateDataModel' in messageValue && !surfaces.has(messageValue.updateDataModel.surfaceId)) {
-      throw new Error(`updateDataModel references unknown surface "${messageValue.updateDataModel.surfaceId}"`)
+      known?.delete(messageValue.deleteSurface.surfaceId)
+    } else {
+      const { surfaceId } = messageValue.updateDataModel
+      if (!surfaces.has(surfaceId) && (known === undefined || !known.has(surfaceId))) {
+        throw new Error(`updateDataModel references surface "${surfaceId}" that this call does not create; send a complete createSurface instead`)
+      }
     }
   }
 }
@@ -285,15 +557,17 @@ function validateComponentGraph(value: ParsedEnvelope): void {
 /**
  * Validate and detach model-authored A2UI messages.
  * @param messages - untrusted messages admitted by the tool argument schema.
+ * @param known - surfaces this session created in earlier calls; required for
+ *   incremental messages whose surface is not created in the same call.
  * @returns the canonical envelope and its validated component count.
  * @throws a ZodError when a message or component is outside the admitted subset.
  */
-export function parseA2uiEnvelope(messages: unknown): {
+export function parseA2uiEnvelope(messages: unknown, known?: Set<string>): {
   envelope: { protocol: string; messages: JsonValue[] }
   componentCount: number
 } {
   const value = envelope.parse({ protocol: A2UI_META_PROTOCOL, messages })
-  validateComponentGraph(value)
+  validateComponentGraph(value, known)
   const canonical = {
     protocol: value.protocol,
     messages: value.messages.map((messageValue) => {

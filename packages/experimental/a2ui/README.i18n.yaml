@@ -15,14 +15,17 @@
   en: 76368b6b1da79c80
   zh: 52384aee991ac542
 /deepseek-ai-dsh-a2ui/use-this-package:
-  en: 375bbf6f9774f186
-  zh: 8c6286899f6f6c5a
+  en: 15d17b376d317464
+  zh: 9af0ad28378b5d9c
 /deepseek-ai-dsh-a2ui/use-this-package/security-properties:
   en: 573ad579d55d959c
   zh: 9316fd4f37a39a97
 /deepseek-ai-dsh-a2ui/understand-the-implementation:
-  en: 4f027e817d77f41e
-  zh: b068dbaf52f910bc
+  en: fd0ee162f7979ca0
+  zh: 3739d324ad75d500
+/deepseek-ai-dsh-a2ui/business-catalog:
+  en: 5516ff7771dd20ba
+  zh: f16ffa2ae0835909
 /deepseek-ai-dsh-a2ui/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
@@ -38,6 +41,18 @@
 /deepseek-ai-dsh-a2ui/model-experience/tool-schemas/kv-cache-effect:
   en: 436c78956e60442b
   zh: b8ab0ebe9a6463e1
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section:
+  en: ff23ee0a6ddaf713
+  zh: e7e220108f241b99
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section/what-the-model-sees:
+  en: ab55d39ed9f854b5
+  zh: 3451d015964db254
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section/token-effect:
+  en: 977266597a243f80
+  zh: 35d14d001224865c
+/deepseek-ai-dsh-a2ui/model-experience/prompt-section/kv-cache-effect:
+  en: 278b244c2d1b20dd
+  zh: c8ed18c863da3f35
 /deepseek-ai-dsh-a2ui/model-experience/tool-results-and-task-context:
   en: 54e0c8a019f02479
   zh: 7331b10d1a455d59
@@ -51,8 +66,8 @@
   en: 4a629edb36a17e32
   zh: d214bca2a120f956
 /deepseek-ai-dsh-a2ui/known-limitations-and-deferred-work:
-  en: 46fcaf8dec51094b
-  zh: 6a81a7fb87ecdafc
+  en: 6ba02a4266c2dbd9
+  zh: 0cf2d5e6d5ada8f2
 /deepseek-ai-dsh-a2ui/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: e88aeb617ffb74ea

@@ -43,7 +43,9 @@ export function A2uiTurnTailContent({ data, inputActions, t }: A2uiTurnTailConte
   return <div className={css.root} data-a2ui-turn-tail="">
     {data.envelopes.map((metadata, index) => <Suspense key={`${metadata.protocol}:${index}`} fallback={<div>{t('loading')}</div>}>
       <LazyA2uiRenderer metadata={metadata} copy={{
-        renderFailed: t('renderFailed'), actionUnavailable: t('actionUnavailable'),
+        renderFailed: t('renderFailed'), actionUnavailable: t('actionUnavailable'), actionSent: t('actionSent'),
+        incrementalUnavailable: t('incrementalUnavailable'),
+        confirmRequired: t('confirmRequired'), confirm: t('confirm'), cancel: t('cancel'),
       }} onAction={submitAction} />
     </Suspense>)}
   </div>

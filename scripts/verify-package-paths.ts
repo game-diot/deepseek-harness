@@ -53,9 +53,11 @@ function realPackageNames(repoRoot: string): Set<string> {
  * characters only, so a glob (`*`), placeholder (`<`, `>`), or brace expansion
  * (`{`, `}`, `,`) terminates the match before those chars and is never probed —
  * those are patterns, not real paths. A trailing `.`/`/` (e.g. a sentence-ending
- * period) is trimmed before the existence check.
+ * period) is trimmed before the existence check. Version-pinned HTTP links are
+ * matched as one token and normalized away: their path belongs to the tagged
+ * repository, not the current checkout.
  */
-const PKG_REF = /\bpackages\/[A-Za-z0-9._/-]+/g
+const PKG_REF = /(?:https?:\/\/[^\s)>\]]*\/)?\bpackages\/[A-Za-z0-9._/-]+/g
 
 function isDriftedPackageReference(repoRoot: string, packageNames: ReadonlySet<string>, ref: string): boolean {
   if (existsSync(resolve(repoRoot, ref))) return false
@@ -89,8 +91,8 @@ export function findPackagePathViolations(repoRoot: string, absPath: string, pac
     absPath,
     PKG_REF,
     // Remove trailing separators or sentence punctuation matched greedily.
-    ref => ref.replace(/[./]+$/, ''),
-    ref => isDriftedPackageReference(repoRoot, packageNames, ref),
+    ref => ref.startsWith('http://') || ref.startsWith('https://') ? '' : ref.replace(/[./]+$/, ''),
+    ref => ref !== '' && isDriftedPackageReference(repoRoot, packageNames, ref),
     historicalSchemaRegion,
   )
 }

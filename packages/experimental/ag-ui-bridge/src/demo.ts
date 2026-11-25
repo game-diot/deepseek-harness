@@ -25,11 +25,20 @@ export function demoPage(runPath: string): string {
   input { flex: 1; padding: 8px 10px; }
   button { padding: 8px 14px; cursor: pointer; }
   button:disabled { cursor: progress; opacity: .55; }
-  .surface { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .surface { --a2ui-gap: 10px; --a2ui-font: 14px; --a2ui-accent: #8a8f98; border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; margin: 12px 0; }
+  .surface[data-tone="info"] { --a2ui-accent: #4c8dff; }
+  .surface[data-tone="success"] { --a2ui-accent: #3fb950; }
+  .surface[data-tone="warning"] { --a2ui-accent: #d29922; }
+  .surface[data-tone="danger"] { --a2ui-accent: #f85149; }
+  .card { border-left: 3px solid var(--a2ui-accent); padding-left: 10px; }
+  @keyframes a2ui-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes a2ui-flash { from { background: rgba(90,150,255,.35); } to { background: transparent; } }
+  .surface .enter { animation: a2ui-enter .3s ease; }
+  .surface .flash { animation: a2ui-flash .8s ease; }
   .surface-id { font: 11px/1.4 ui-monospace, monospace; opacity: .6; margin-bottom: 8px; }
-  .col { display: flex; flex-direction: column; gap: 10px; }
-  .row { display: flex; flex-direction: row; gap: 10px; align-items: center; }
-  .text { white-space: pre-wrap; }
+  .col { display: flex; flex-direction: column; gap: var(--a2ui-gap); }
+  .row { display: flex; flex-direction: row; gap: var(--a2ui-gap); align-items: center; }
+  .text { white-space: pre-wrap; font-size: var(--a2ui-font); }
   .caption { font-size: 12px; opacity: .75; }
   .divider-h { border: 0; border-top: 1px solid rgba(127,127,127,.35); margin: 6px 0; width: 100%; }
   .divider-v { border: 0; border-left: 1px solid rgba(127,127,127,.35); margin: 0 6px; align-self: stretch; }
@@ -39,13 +48,15 @@ export function demoPage(runPath: string): string {
   .icon { font-size: 18px; line-height: 1; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field-label { font-size: 12px; opacity: .8; }
+  .checks { font-size: 12px; color: #f85149; }
+  .checks:empty { display: none; }
   .control { padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(127,127,127,.45); background: transparent; color: inherit; }
   .choices { display: flex; flex-wrap: wrap; gap: 10px; }
   .choice { display: flex; gap: 6px; align-items: center; font-size: 14px; }
   .slider { display: flex; gap: 8px; align-items: center; }
   .slider input { flex: 1; }
   .slider-value { font: 12px/1.4 ui-monospace, monospace; opacity: .8; min-width: 3ch; }
-  .list { display: flex; gap: 10px; }
+  .list { display: flex; gap: var(--a2ui-gap); }
   .list.vertical { flex-direction: column; }
   .list.horizontal { flex-direction: row; flex-wrap: wrap; }
   .tabs { display: flex; flex-direction: column; gap: 8px; }
@@ -55,7 +66,7 @@ export function demoPage(runPath: string): string {
   .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; }
   .modal-panel { background: Canvas; color: CanvasText; border-radius: 12px; padding: 18px; min-width: 280px; max-width: min(80vw, 520px); max-height: 80vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
   .media { max-width: 100%; border-radius: 8px; }
-  .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(127,127,127,.5); cursor: pointer; }
+  .button { align-self: flex-start; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--a2ui-accent); cursor: pointer; }
   .fallback { font: 12px/1.4 ui-monospace, monospace; opacity: .7; }
   #status { font: 12px/1.4 ui-monospace, monospace; opacity: .75; }
   label { font-size: 12px; opacity: .8; display: flex; gap: 6px; align-items: center; }
@@ -90,12 +101,19 @@ let busy = false;
 const surfaces = new Map();
 const components = new Map();
 const dataModels = new Map();
+const surfaceBoxes = new Map();
+const signatureCache = new Map();
+const themes = new Map();
+const scopedBases = new Map();
 const logLines = [];
 
 const JUSTIFY = {
   start: 'flex-start', center: 'center', end: 'flex-end',
   spaceBetween: 'space-between', spaceAround: 'space-around', spaceEvenly: 'space-evenly', stretch: 'stretch',
 };
+const DENSITY = { compact: '6px', comfortable: '10px', spacious: '16px' };
+const TEXT_SCALE = { sm: '12px', md: '14px', lg: '17px' };
+
 const ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch' };
 const FIT = { contain: 'contain', cover: 'cover', fill: 'fill', none: 'none', scaleDown: 'scale-down' };
 const ICONS = {
@@ -106,7 +124,8 @@ const ICONS = {
 };
 
 function resolvePath(surfaceId, path) {
-  let cur = dataModels.get(surfaceId) || {};
+  const owner = String(path).startsWith('/') ? scopedBases.get(surfaceId) : undefined;
+  let cur = owner === undefined ? (dataModels.get(surfaceId) || {}) : owner;
   for (const segment of String(path).split('/').filter(Boolean)) {
     if (cur === null || typeof cur !== 'object') return undefined;
     cur = cur[segment];
@@ -158,6 +177,7 @@ function commitControl(surfaceId, component, value) {
   if (raw !== null && typeof raw === 'object' && typeof raw['@path'] === 'string') {
     setPath(surfaceId, raw['@path'], value);
   }
+  updateChecks(surfaceId);
 }
 
 function resolveDeep(surfaceId, value) {
@@ -216,6 +236,41 @@ function renderMarkdown(text) {
   return fragment;
 }
 
+function baseSurfaceId(surfaceId) {
+  const cut = surfaceId.indexOf('#');
+  return cut === -1 ? surfaceId : surfaceId.slice(0, cut);
+}
+
+function componentFor(surfaceId, id) {
+  const own = components.get(surfaceId + '/' + id);
+  if (own !== undefined) return own;
+  const base = baseSurfaceId(surfaceId);
+  return base === surfaceId ? undefined : components.get(base + '/' + id);
+}
+
+function bindTemplateItems(surfaceId, children) {
+  const items = resolvePath(surfaceId, children.path);
+  if (!Array.isArray(items)) return [];
+  const owner = dataModels.get(baseSurfaceId(surfaceId)) || {};
+  return items.map((item, index) => {
+    const scoped = surfaceId + '#' + children.componentId + ':' + index;
+    dataModels.set(scoped, item);
+    scopedBases.set(scoped, owner);
+    return scoped;
+  });
+}
+
+function renderChildren(el, surfaceId, children) {
+  if (Array.isArray(children)) {
+    for (const child of children) el.append(renderComponent(surfaceId, child));
+    return;
+  }
+  if (children === undefined || children === null) return;
+  for (const scoped of bindTemplateItems(surfaceId, children)) {
+    el.append(renderComponent(scoped, children.componentId));
+  }
+}
+
 function newThreadId() {
   return 'demo-' + Math.random().toString(36).slice(2);
 }
@@ -226,6 +281,11 @@ function resetThread() {
   surfaces.clear();
   components.clear();
   dataModels.clear();
+  surfaceBoxes.clear();
+  signatureCache.clear();
+  themes.clear();
+  scopedBases.clear();
+  checkTargets.clear();
   overrides.clear();
   logLines.length = 0;
   document.getElementById('messages').textContent = '';
@@ -267,34 +327,153 @@ const bubble = (role, text) => {
   return el;
 };
 
+function componentSignature(c) {
+  const parts = [];
+  for (const key of Object.keys(c).sort()) {
+    if (key === 'value' || key === 'checks') continue;
+    parts.push(key + '=' + JSON.stringify(c[key]));
+  }
+  return parts.join('&');
+}
+
+function pulse(el, name) {
+  el.classList.remove(name);
+  void el.offsetWidth;
+  el.classList.add(name);
+  el.addEventListener('animationend', () => el.classList.remove(name), { once: true });
+}
+
+function reconcileNode(oldEl, newEl) {
+  if (!oldEl || oldEl.dataset.kind !== newEl.dataset.kind) return newEl;
+  oldEl.className = newEl.className;
+  const style = newEl.getAttribute('style');
+  if (style === null) oldEl.removeAttribute('style');
+  else oldEl.setAttribute('style', style);
+  const newChildren = [...newEl.children];
+  if (newChildren.length === 0) {
+    for (const attr of ['type', 'min', 'max', 'step', 'placeholder', 'poster', 'src']) {
+      const value = newEl.getAttribute(attr);
+      if (value === null) oldEl.removeAttribute(attr);
+      else if (oldEl.getAttribute(attr) !== value) oldEl.setAttribute(attr, value);
+    }
+    if (oldEl.innerHTML !== newEl.innerHTML) oldEl.innerHTML = newEl.innerHTML;
+    return oldEl;
+  }
+  const oldByCid = new Map();
+  const anonymousOld = [];
+  for (const child of [...oldEl.children]) {
+    if (child.dataset && child.dataset.cid !== undefined) oldByCid.set(child.dataset.cid, child);
+    else anonymousOld.push(child);
+  }
+  const used = new Set();
+  let anonymousIndex = 0;
+  for (const newChild of newChildren) {
+    const cid = newChild.dataset ? newChild.dataset.cid : undefined;
+    let target = newChild;
+    if (cid !== undefined && oldByCid.has(cid)) {
+      target = reconcileNode(oldByCid.get(cid), newChild);
+      used.add(cid);
+    } else if (cid === undefined && anonymousIndex < anonymousOld.length) {
+      target = reconcileNode(anonymousOld[anonymousIndex], newChild);
+      anonymousIndex += 1;
+    } else {
+      target.dataset.fresh = '1';
+    }
+    oldEl.append(target);
+  }
+  for (const child of anonymousOld.slice(anonymousIndex)) child.remove();
+  for (const [cid, child] of oldByCid) {
+    if (!used.has(cid)) child.remove();
+  }
+  return oldEl;
+}
+
 function renderSurfaces() {
   const root = document.getElementById('surfaces');
-  root.textContent = '';
   if (surfaces.size === 0) {
+    root.textContent = '';
+    surfaceBoxes.clear();
+    signatureCache.clear();
     const empty = document.createElement('div');
     empty.className = 'fallback';
     empty.textContent = 'no surfaces yet';
     root.append(empty);
     return;
   }
+  const empty = root.querySelector('.fallback');
+  if (empty) empty.remove();
+  const live = new Set();
   for (const [surfaceId, ids] of surfaces) {
-    const box = document.createElement('div');
-    box.className = 'surface';
-    box.dataset.surfaceId = surfaceId;
-    const label = document.createElement('div');
-    label.className = 'surface-id';
-    label.textContent = surfaceId;
-    box.append(label);
+    live.add(surfaceId);
+    let box = surfaceBoxes.get(surfaceId);
+    if (box === undefined) {
+      box = document.createElement('div');
+      box.className = 'surface';
+      box.dataset.surfaceId = surfaceId;
+      const label = document.createElement('div');
+      label.className = 'surface-id';
+      label.textContent = surfaceId;
+      box.append(label);
+      surfaceBoxes.set(surfaceId, box);
+    }
+    const theme = themes.get(surfaceId);
+    if (theme === undefined) {
+      delete box.dataset.tone;
+      box.style.removeProperty('--a2ui-gap');
+      box.style.removeProperty('--a2ui-font');
+    } else {
+      if (theme.tone === undefined) delete box.dataset.tone;
+      else box.dataset.tone = theme.tone;
+      if (theme.density === undefined) box.style.removeProperty('--a2ui-gap');
+      else box.style.setProperty('--a2ui-gap', DENSITY[theme.density] || '');
+      if (theme.textScale === undefined) box.style.removeProperty('--a2ui-font');
+      else box.style.setProperty('--a2ui-font', TEXT_SCALE[theme.textScale] || '');
+    }
+    checkTargets.set(surfaceId, []);
+    const signatures = new Map();
     const referenced = new Set();
     for (const id of ids) {
       const c = components.get(surfaceId + '/' + id);
       if (!c) continue;
+      signatures.set(id, componentSignature(c));
       if (typeof c.child === 'string') referenced.add(c.child);
       if (Array.isArray(c.children)) for (const child of c.children) referenced.add(child);
+      else if (c.children !== undefined && c.children !== null) referenced.add(c.children.componentId);
+      if (Array.isArray(c.tabs)) for (const tab of c.tabs) referenced.add(tab.child);
+      if (typeof c.trigger === 'string') referenced.add(c.trigger);
+      if (typeof c.content === 'string') referenced.add(c.content);
     }
     const rootId = ids.find(id => !referenced.has(id));
-    box.append(rootId ? renderComponent(surfaceId, rootId) : fallback('no root component'));
+    const next = rootId ? renderComponent(surfaceId, rootId) : fallback('no root component');
+    const previousCard = box.querySelector(':scope > [data-cid]');
+    if (previousCard === null) {
+      next.dataset.fresh = '1';
+      box.append(next);
+    } else {
+      const card = reconcileNode(previousCard, next);
+      if (card !== previousCard) previousCard.replaceWith(card);
+    }
+    const previous = signatureCache.get(surfaceId);
+    const nodesById = new Map();
+    for (const el of box.querySelectorAll('[data-cid]')) nodesById.set(el.dataset.cid, el);
+    for (const [cid, signature] of signatures) {
+      const el = nodesById.get(cid);
+      if (el === undefined) continue;
+      if (el.dataset.fresh === '1') {
+        delete el.dataset.fresh;
+        pulse(el, 'enter');
+      } else if (previous !== undefined && previous.get(cid) !== signature) {
+        pulse(el, 'flash');
+      }
+    }
+    signatureCache.set(surfaceId, signatures);
     root.append(box);
+  }
+  for (const [surfaceId, box] of [...surfaceBoxes]) {
+    if (live.has(surfaceId)) continue;
+    box.remove();
+    surfaceBoxes.delete(surfaceId);
+    signatureCache.delete(surfaceId);
   }
 }
 
@@ -305,11 +484,99 @@ function fallback(text) {
   return el;
 }
 
+function checkTruthy(result) {
+  if (typeof result === 'boolean') return result;
+  if (result !== null && typeof result === 'object') return result.valid === true;
+  return Boolean(result);
+}
+
+function evaluateCheck(surfaceId, node) {
+  if (node === null || typeof node !== 'object') return node;
+  if (typeof node['@path'] === 'string') return resolvePath(surfaceId, node['@path']);
+  const args = node.args || {};
+  const arg = key => evaluateCheck(surfaceId, args[key]);
+  if (node['@call'] === 'required') {
+    const value = arg('value');
+    const empty = value === undefined || value === null || value === ''
+      || (Array.isArray(value) && value.length === 0);
+    return { valid: !empty };
+  }
+  if (node['@call'] === 'regex') {
+    const text = String(arg('value') === undefined || arg('value') === null ? '' : arg('value')).slice(0, 2000);
+    try {
+      return { valid: new RegExp(args.pattern, 'u').test(text) };
+    } catch (error) {
+      return { valid: false, message: 'invalid pattern' };
+    }
+  }
+  if (node['@call'] === 'length') {
+    const text = String(arg('value') === undefined || arg('value') === null ? '' : arg('value'));
+    const min = args.min === undefined ? 0 : args.min;
+    const max = args.max === undefined ? Infinity : args.max;
+    return { valid: text.length >= min && text.length <= max };
+  }
+  if (node['@call'] === 'numeric') {
+    const value = Number(arg('value'));
+    const min = args.min === undefined ? -Infinity : args.min;
+    const max = args.max === undefined ? Infinity : args.max;
+    return { valid: Number.isFinite(value) && value >= min && value <= max };
+  }
+  if (node['@call'] === 'email') {
+    return { valid: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(arg('value') === undefined ? '' : arg('value'))) };
+  }
+  if (node['@call'] === 'and') return { valid: (args.values || []).every(item => checkTruthy(evaluateCheck(surfaceId, item))) };
+  if (node['@call'] === 'or') return { valid: (args.values || []).some(item => checkTruthy(evaluateCheck(surfaceId, item))) };
+  if (node['@call'] === 'not') return { valid: !checkTruthy(evaluateCheck(surfaceId, args.value)) };
+  return { valid: true };
+}
+
+const checkTargets = new Map();
+const guardedActions = new Set();
+
+function failedCheckMessages(surfaceId, checks) {
+  const messages = [];
+  for (const rule of checks || []) {
+    const result = evaluateCheck(surfaceId, rule.condition);
+    if (checkTruthy(result)) continue;
+    const fromResult = result !== null && typeof result === 'object' && typeof result.message === 'string' ? result.message : '';
+    messages.push(rule.message || fromResult || '输入无效');
+  }
+  return messages;
+}
+
+function updateChecks(surfaceId) {
+  const base = baseSurfaceId(surfaceId);
+  for (const target of checkTargets.get(base) || []) {
+    target.node.textContent = failedCheckMessages(surfaceId, target.component.checks).join('；');
+  }
+}
+
 function renderComponent(surfaceId, id) {
-  const c = components.get(surfaceId + '/' + id);
+  const el = buildComponent(surfaceId, id);
+  const c = componentFor(surfaceId, id);
+  if (c) {
+    const base = baseSurfaceId(surfaceId);
+    el.dataset.cid = base === surfaceId ? c.id : c.id + surfaceId.slice(base.length);
+    el.dataset.kind = c.component;
+    if (Array.isArray(c.checks) && c.checks.length > 0) {
+      const node = document.createElement('div');
+      node.className = 'checks';
+      node.textContent = failedCheckMessages(surfaceId, c.checks).join('；');
+      el.append(node);
+      const targets = checkTargets.get(base) || [];
+      targets.push({ component: c, node });
+      checkTargets.set(base, targets);
+    }
+  }
+  return el;
+}
+
+function buildComponent(surfaceId, id) {
+  const c = componentFor(surfaceId, id);
   if (!c) return fallback(id + ' missing');
   if (c.component === 'Card') {
     const el = document.createElement('div');
+    el.className = 'card';
     if (c.child) el.append(renderComponent(surfaceId, c.child));
     return el;
   }
@@ -318,7 +585,7 @@ function renderComponent(surfaceId, id) {
     el.className = 'col';
     if (c.justify) el.style.justifyContent = JUSTIFY[c.justify] || 'flex-start';
     if (c.align) el.style.alignItems = ALIGN[c.align] || 'stretch';
-    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    renderChildren(el, surfaceId, c.children);
     return el;
   }
   if (c.component === 'Row') {
@@ -326,7 +593,7 @@ function renderComponent(surfaceId, id) {
     el.className = 'row';
     if (c.justify) el.style.justifyContent = JUSTIFY[c.justify] || 'flex-start';
     if (c.align) el.style.alignItems = ALIGN[c.align] || 'center';
-    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    renderChildren(el, surfaceId, c.children);
     return el;
   }
   if (c.component === 'Divider') {
@@ -446,7 +713,7 @@ function renderComponent(surfaceId, id) {
     const el = document.createElement('div');
     el.className = 'list ' + (c.direction === 'horizontal' ? 'horizontal' : 'vertical');
     if (c.align) el.style.alignItems = ALIGN[c.align] || 'stretch';
-    for (const child of c.children || []) el.append(renderComponent(surfaceId, child));
+    renderChildren(el, surfaceId, c.children);
     return el;
   }
   if (c.component === 'Tabs') {
@@ -557,8 +824,35 @@ function renderComponent(surfaceId, id) {
         return;
       }
       const action = c.action && c.action.event ? c.action.event : { name: 'unknown' };
-      send('[A2UI action] ' + JSON.stringify({ ...resolveDeep(surfaceId, action), surfaceId }))
+      const submit = () => send('[A2UI action] ' + JSON.stringify({ ...resolveDeep(surfaceId, action), surfaceId }))
         .catch(error => bubble('tool', String(error)));
+      if (!guardedActions.has(action.name)) {
+        submit();
+        return;
+      }
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      const panel = document.createElement('div');
+      panel.className = 'modal-panel';
+      const question = document.createElement('div');
+      question.textContent = '该操作需要确认：' + action.name;
+      const row = document.createElement('div');
+      row.className = 'row';
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.className = 'button';
+      confirm.textContent = '确认';
+      confirm.addEventListener('click', () => { backdrop.remove(); submit(); });
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'button';
+      cancel.textContent = '取消';
+      cancel.addEventListener('click', () => backdrop.remove());
+      row.append(confirm, cancel);
+      panel.append(question, row);
+      backdrop.append(panel);
+      backdrop.addEventListener('click', event => { if (event.target === backdrop) backdrop.remove(); });
+      document.body.append(backdrop);
     });
     return el;
   }
@@ -566,11 +860,15 @@ function renderComponent(surfaceId, id) {
 }
 
 function applyA2ui(payload) {
+  for (const name of payload.approval || []) guardedActions.add(name);
   for (const message of payload.messages || []) {
     if (message.createSurface) {
       const surface = message.createSurface;
       surfaces.set(surface.surfaceId, []);
       dataModels.set(surface.surfaceId, surface.dataModel || {});
+      const theme = surface.metadata && surface.metadata.extensions ? surface.metadata.extensions.dsh_theme : undefined;
+      if (theme) themes.set(surface.surfaceId, theme);
+      else themes.delete(surface.surfaceId);
       for (const component of surface.components || []) {
         components.set(surface.surfaceId + '/' + component.id, component);
         surfaces.get(surface.surfaceId).push(component.id);
@@ -588,6 +886,20 @@ function applyA2ui(payload) {
       const surfaceId = message.deleteSurface.surfaceId;
       surfaces.delete(surfaceId);
       dataModels.delete(surfaceId);
+      for (const key of [...dataModels.keys()]) {
+        if (key.startsWith(surfaceId + '#')) dataModels.delete(key);
+      }
+      for (const key of [...scopedBases.keys()]) {
+        if (key.startsWith(surfaceId + '#')) scopedBases.delete(key);
+      }
+      themes.delete(surfaceId);
+      checkTargets.delete(surfaceId);
+      signatureCache.delete(surfaceId);
+      const box = surfaceBoxes.get(surfaceId);
+      if (box !== undefined) {
+        box.remove();
+        surfaceBoxes.delete(surfaceId);
+      }
       for (const key of [...overrides.keys()]) {
         if (key.startsWith(surfaceId + '/')) overrides.delete(key);
       }
@@ -597,8 +909,12 @@ function applyA2ui(payload) {
     }
     if (message.updateDataModel) {
       const update = message.updateDataModel;
-      const model = dataModels.get(update.surfaceId) || {};
       const segments = String(update.path).split('/').filter(Boolean);
+      if (segments.length === 0) {
+        dataModels.set(update.surfaceId, update.value === null || typeof update.value !== 'object' ? {} : update.value);
+        continue;
+      }
+      const model = dataModels.get(update.surfaceId) || {};
       let cursor = model;
       for (const segment of segments.slice(0, -1)) {
         if (cursor[segment] === null || typeof cursor[segment] !== 'object') cursor[segment] = {};
@@ -651,6 +967,11 @@ function handleEvent(event) {
       messages.push({ id: event.messageId, role: 'tool', toolCallId: event.toolCallId, content: String(event.content ?? '') });
       bubble('tool', String(event.content ?? '').slice(0, 200));
       return;
+    }
+    case 'STATE_SNAPSHOT': {
+      const snapshot = event.snapshot || {};
+      if (snapshot.a2ui) applyA2ui(snapshot.a2ui);
+      break;
     }
     case 'CUSTOM': {
       if (event.name === 'a2ui') applyA2ui(event.value || {});

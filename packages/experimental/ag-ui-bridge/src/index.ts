@@ -17,6 +17,26 @@ import { EventType, PROTOCOL_VERSION } from '@ag-ui/core'
 import { AgUiRunEmitter } from './run-emitter.ts'
 import { AgUiRunHistory, historyBytes, projectMessages, sameHistory } from './run-history.ts'
 import { demoPage } from './demo.ts'
+import { exampleHtml } from './example.ts'
+import { readFileSync } from 'node:fs'
+
+/** Approval answers this bridge can deliver. */
+type ApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'
+
+/** The subset of an approval question this bridge answers. */
+interface ApprovalQuestion {
+  readonly agent: { readonly session: unknown }
+  readonly toolName: string
+  readonly callId?: string
+  readonly reason?: string
+}
+
+type ApprovalAwareContext = Context & {
+  on(
+    event: 'approval/request',
+    listener: (request: ApprovalQuestion, next: () => Promise<ApprovalOutcome>) => Promise<ApprovalOutcome>,
+  ): () => void
+}
 
 /** Cordis plugin name. */
 export const name = 'ag-ui-bridge'
@@ -35,10 +55,29 @@ export interface Config {
   model: string
   /** Maximum process-local authenticated Thread bindings. */
   maxThreads?: number
+  /**
+   * Absolute project directory recorded on the Sessions this bridge creates, so the
+   * resulting Sessions group under that workspace instead of the no-cwd bucket.
+   * Defaults to the host process working directory.
+   */
+  sessionCwd?: string
+  /** Emit the canonical A2UI payload as an AG-UI state snapshot. Defaults to true. */
+  emitStateSnapshot?: boolean
+  /** Emit the bridge-specific `CUSTOM` a2ui event. Defaults to true. */
+  emitCustomEvent?: boolean
+  /**
+   * Turn a Tool approval question into an AG-UI interrupt: the Run ends with an
+   * interrupt outcome and the next Run on that thread answers it through `resume`.
+   */
+  interruptOnApproval?: boolean
+  /** How long a pending interrupt waits for its resume before it is cancelled. */
+  interruptTimeoutMs?: number
   /** Maximum recorded Thread history bytes carried by one Run request. */
   maxHistoryBytes?: number
   /** Serve a self-contained `/demo` page beside the run endpoint. */
   demo?: boolean
+  /** Serve the standalone example that uses the published AG-UI client only. */
+  example?: boolean
 }
 
 /** Loader schema for the optional bridge. */
@@ -48,8 +87,14 @@ export const Config: z<Config> = z.object({
   provider: z.string().required(),
   model: z.string().required(),
   maxThreads: z.number().step(1).min(1).default(32),
+  sessionCwd: z.string(),
+  emitStateSnapshot: z.boolean().default(true),
+  emitCustomEvent: z.boolean().default(true),
+  interruptOnApproval: z.boolean().default(false),
+  interruptTimeoutMs: z.number().step(1).min(1000).default(60_000),
   maxHistoryBytes: z.number().step(1).min(1).default(1_048_576),
   demo: z.boolean().default(false),
+  example: z.boolean().default(false),
 })
 
 async function readJson(req: IncomingMessage, maxBytes: number): Promise<unknown> {
@@ -75,11 +120,13 @@ function supportsFirstSlice(input: {
   readonly parentRunId?: string | undefined
   readonly resume?: unknown
 }): boolean {
-  const allowed = new Set(['protocolVersion', 'threadId', 'runId', 'messages', 'tools', 'context', 'state', 'forwardedProps'])
+  const allowed = new Set([
+    'protocolVersion', 'threadId', 'runId', 'messages', 'tools', 'context', 'state', 'forwardedProps', 'resume',
+  ])
   if (Object.keys(input).some(key => !allowed.has(key))) return false
   const emptyObject = (value: unknown): boolean => value === undefined || typeof value === 'object' && value !== null && !Array.isArray(value)
     && Object.keys(value).length === 0
-  return input.protocolVersion === PROTOCOL_VERSION && input.parentRunId === undefined && input.resume === undefined
+  return input.protocolVersion === PROTOCOL_VERSION && input.parentRunId === undefined
     && (input.tools?.length ?? 0) === 0 && (input.context?.length ?? 0) === 0
     && emptyObject(input.state) && emptyObject(input.forwardedProps)
 }
@@ -102,11 +149,20 @@ function toolResultText(content: readonly { readonly type: string; readonly text
 }
 
 /** A2UI messages carried by one durable Tool result, when it speaks the A2UI protocol. */
-function a2uiPayload(meta: unknown): { readonly protocol: 'a2ui/v1'; readonly messages: readonly unknown[] } | null {
+function a2uiPayload(meta: unknown): {
+  readonly protocol: 'a2ui/v1'
+  readonly messages: readonly unknown[]
+  readonly approval?: readonly string[]
+} | null {
   if (typeof meta !== 'object' || meta === null) return null
-  const candidate = meta as { protocol?: unknown; messages?: unknown }
+  const candidate = meta as { protocol?: unknown; messages?: unknown; approval?: unknown }
   if (candidate.protocol !== 'a2ui/v1' || !Array.isArray(candidate.messages)) return null
-  return { protocol: 'a2ui/v1', messages: candidate.messages }
+  const approval = Array.isArray(candidate.approval)
+    ? candidate.approval.filter((entry): entry is string => typeof entry === 'string')
+    : []
+  return approval.length === 0
+    ? { protocol: 'a2ui/v1', messages: candidate.messages }
+    : { protocol: 'a2ui/v1', messages: candidate.messages, approval }
 }
 
 function attributedPrompt(peer: PeerScope, threadId: string, runId: string, text: string): string {
@@ -136,6 +192,7 @@ export function apply(ctx: Context, config: Config): void {
   const path = config.path ?? '/ag-ui/run'
   const maxBodyBytes = config.maxBodyBytes ?? 1_048_576
   const maxThreads = config.maxThreads ?? 32
+  const sessionCwd = config.sessionCwd ?? process.cwd()
   const maxHistoryBytes = config.maxHistoryBytes ?? 1_048_576
   const threads = new Map<string, AgentHandle>()
   const histories = new Map<string, AgUiRunHistory>()
@@ -143,6 +200,70 @@ export function apply(ctx: Context, config: Config): void {
   const running = new Set<string>()
   const creating = new Set<string>()
   const pendingCreations = new Set<Promise<AgentHandle>>()
+  /** Threads whose Run ended on an interrupt and waits for its resume. */
+  const pendingInterrupts = new Map<string, {
+    readonly interruptId: string
+    readonly settle: (outcome: ApprovalOutcome) => void
+    readonly timer: ReturnType<typeof setTimeout>
+  }>()
+  /** Per-thread hook the active Run exposes so an approval can end it with an interrupt. */
+  const interruptHooks = new Map<string, (payload: unknown) => boolean>()
+  /** Threads reserved until their pending interrupt settles. */
+  const pausedThreads = new Set<string>()
+
+  const threadKeyOfSession = (session: unknown): string | undefined => {
+    for (const [candidate, handle] of threads) {
+      /* v8 ignore next -- an unmatched Session walks the whole map before returning undefined. */
+      if (handle.agent.session === session) return candidate
+    }
+    return undefined
+  }
+
+  if (config.interruptOnApproval === true) {
+    ;(ctx as ApprovalAwareContext).on('approval/request', async (request, next) => {
+      const key = threadKeyOfSession(request.agent.session)
+      const hook = key === undefined ? undefined : interruptHooks.get(key)
+      if (key === undefined || hook === undefined) return next()
+      const interruptId = randomUUID()
+      return await new Promise<ApprovalOutcome>((resolve) => {
+        const settleOnce = (outcome: ApprovalOutcome): void => {
+          const pending = pendingInterrupts.get(key)
+          /* v8 ignore next -- settling twice is a defensive guard, not a reachable state. */
+          if (pending === undefined) return
+          clearTimeout(pending.timer)
+          pendingInterrupts.delete(key)
+          resolve(outcome)
+        }
+        const timer = setTimeout(() => {
+          pausedThreads.delete(key)
+          stale.add(key)
+          settleOnce('cancelled')
+        }, config.interruptTimeoutMs ?? 60_000)
+        pendingInterrupts.set(key, { interruptId, settle: settleOnce, timer })
+        pausedThreads.add(key)
+        let published = false
+        try {
+          published = hook({
+            id: interruptId,
+            reason: request.reason ?? `Approve ${request.toolName}`,
+            ...request.callId === undefined ? {} : { toolCallId: request.callId },
+            metadata: { toolName: request.toolName },
+          })
+        } catch (error) {
+          /* v8 ignore next -- publication only throws for an event the schema rejects. */
+          ctx.logger.warn('AG-UI interrupt publication failed: %s', error)
+        }
+        /* v8 ignore next -- publication only fails for a Run that already ended. */
+        if (published) return
+        // The Run cannot be paused: answer the question and let it finish normally.
+        /* v8 ignore next 2 -- an active Run that already ended cannot reach this branch. */
+        pausedThreads.delete(key)
+        /* v8 ignore next -- only reachable for an already-ended Run. */
+        settleOnce('unavailable')
+      })
+    })
+  }
+
   const activeHandlers = new Set<{ readonly abort: () => void; readonly done: Promise<void> }>()
   const lifecycle = { closing: false }
 
@@ -168,6 +289,45 @@ export function apply(ctx: Context, config: Config): void {
       await Promise.all([...threads.values()].map(handle => handle.dispose()))
       histories.clear()
       stale.clear()
+    }
+    if (config.example === true) {
+      yield ctx.webServer.register({
+        kind: 'exact', path: `${path}/example`, auth: 'required',
+        handler: (req, res) => {
+          if (req.method !== 'GET') {
+            res.writeHead(405, { allow: 'GET', 'cache-control': 'no-store' }).end()
+            return
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+            .end(exampleHtml)
+        },
+      })
+      yield ctx.webServer.register({
+        kind: 'exact', path: `${path}/example/client.js`, auth: 'required',
+        handler: (req, res) => {
+          if (req.method !== 'GET') {
+            res.writeHead(405, { allow: 'GET', 'cache-control': 'no-store' }).end()
+            return
+          }
+          let bundle: Buffer | undefined
+          for (const candidate of ['../official-client.js', '../lib/official-client.js']) {
+            try {
+              bundle = readFileSync(new URL(candidate, import.meta.url))
+              break
+            } catch { /* try the next candidate */ }
+          }
+          /* v8 ignore next 6 -- only reachable when `build:example` never ran. */
+          if (bundle === undefined) {
+            json(res, 404, {
+              error: 'build the example bundle first',
+              code: 'DSH_AG_UI_EXAMPLE_UNAVAILABLE',
+            })
+            return
+          }
+          res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' })
+            .end(bundle)
+        },
+      })
     }
     if (config.demo === true) {
       yield ctx.webServer.register({
@@ -258,7 +418,33 @@ export function apply(ctx: Context, config: Config): void {
             return
           }
           const key = threadKey(peer, input.threadId)
-          if (stale.has(key)) {
+          const resumeEntry = input.resume?.[0]
+          let resuming = false
+          if (resumeEntry !== undefined) {
+            const pending = pendingInterrupts.get(key)
+            if (pending === undefined || pending.interruptId !== resumeEntry.interruptId) {
+              json(res, 400, {
+                error: 'this interrupt is not pending for the thread', code: 'DSH_AG_UI_UNKNOWN_INTERRUPT',
+              })
+              return
+            }
+            const answer = resumeEntry.payload as { outcome?: unknown } | undefined
+            const outcome = answer?.outcome
+            if (outcome !== 'allowed-once' && outcome !== 'rejected' && outcome !== 'cancelled') {
+              json(res, 400, {
+                error: 'resume payload must carry a supported outcome', code: 'DSH_AG_UI_INVALID_REQUEST',
+              })
+              return
+            }
+            pausedThreads.delete(key)
+            pending.settle(outcome)
+            resuming = true
+          }
+          if (pausedThreads.has(key) && !resuming) {
+            json(res, 409, { error: 'this thread is waiting for a resume', code: 'DSH_AG_UI_INTERRUPT_PENDING' })
+            return
+          }
+          if (!resuming && stale.has(key)) {
             json(res, 409, {
               error: 'this thread must start over after an interrupted run', code: 'DSH_AG_UI_HISTORY_UNUSABLE',
             })
@@ -275,7 +461,7 @@ export function apply(ctx: Context, config: Config): void {
             }
           } else {
             const recordedHistory = recorded.snapshot()
-            if (!sameHistory(recordedHistory, history)) {
+            if (!resuming && !sameHistory(recordedHistory, history)) {
               // A Run that failed before publishing anything left its user message recorded; the retry resends it.
               const trailing = recordedHistory.at(-1)
               retried = trailing !== undefined
@@ -317,6 +503,7 @@ export function apply(ctx: Context, config: Config): void {
             if (handle === undefined) {
               const creation = ctx.agents.create({
                 sessionId: brandString<SessionId>(randomUUID()),
+                meta: { cwd: sessionCwd },
                 agentOptions: { provider: config.provider, model: config.model },
               })
               pendingCreations.add(creation)
@@ -351,7 +538,7 @@ export function apply(ctx: Context, config: Config): void {
           /* v8 ignore next -- pending-creation and active-Handler shutdown tests cover both sides of this race. */
           if (isUnavailable(lifecycle, disconnected.signal)) return
           const runHistory = recorded ?? new AgUiRunHistory()
-          runHistory.appendUser(current)
+          if (!resuming) runHistory.appendUser(current)
           histories.set(key, runHistory)
           const encoder = new EventEncoder({ accept: 'text/event-stream' })
           const published = { any: false }
@@ -369,10 +556,18 @@ export function apply(ctx: Context, config: Config): void {
           }
           const bridge = new AgUiRunEmitter({ threadId: input.threadId, runId: input.runId }, emit)
           const settled = Promise.withResolvers<void>()
-          let started = false
+          let started = resuming
+          if (config.interruptOnApproval === true) {
+            interruptHooks.set(key, (payload) => {
+              /* v8 ignore next -- an active Run is never terminal when its approval arrives. */
+              if (!bridge.interrupt([payload])) return false
+              settled.resolve()
+              return true
+            })
+          }
           const disposers = [
             ctx.on('agent/inbox/claimed', ({ agent: subject, message }) => {
-              if (subject !== agent || message.id !== submitted.id) return
+              if (subject !== agent || submitted === undefined || message.id !== submitted.id) return
               started = true
               bridge.start()
             }),
@@ -403,7 +598,14 @@ export function apply(ctx: Context, config: Config): void {
               if (event.type === 'tool/result' && started) {
                 bridge.toolResult(String(event.data.message.source.callId), toolResultText(event.data.message.content))
                 const a2ui = a2uiPayload(event.data.meta)
-                if (a2ui !== null) emit({ type: EventType.CUSTOM, name: 'a2ui', value: a2ui })
+                if (a2ui !== null) {
+                  if (config.emitStateSnapshot !== false) {
+                    emit({ type: EventType.STATE_SNAPSHOT, snapshot: { a2ui } })
+                  }
+                  if (config.emitCustomEvent !== false) {
+                    emit({ type: EventType.CUSTOM, name: 'a2ui', value: a2ui })
+                  }
+                }
                 return
               }
               if (event.type !== 'turn/end' || !started) return
@@ -415,16 +617,19 @@ export function apply(ctx: Context, config: Config): void {
               settled.resolve()
             }),
           ]
-          const submitted = createUserMessage({
-            content: [{ type: 'text', text: attributedPrompt(peer, input.threadId, input.runId, text) }],
-            source: { kind: 'user' },
-          })
+          const submitted = resuming
+            ? undefined
+            : createUserMessage({
+              content: [{ type: 'text', text: attributedPrompt(peer, input.threadId, input.runId, text) }],
+              source: { kind: 'user' },
+            })
           res.writeHead(200, {
             'content-type': encoder.getContentType(), 'cache-control': 'no-store', connection: 'keep-alive',
           })
           try {
             try {
-              agent.followup(submitted)
+              if (submitted === undefined) bridge.start()
+              else agent.followup(submitted)
             } catch (error) {
               ctx.logger.warn('AG-UI Agent followup failed: %s', error)
               bridge.start()
@@ -446,6 +651,7 @@ export function apply(ctx: Context, config: Config): void {
             }
             if (stale.has(key)) discard(key, handle)
             for (const dispose of disposers) dispose()
+            interruptHooks.delete(key)
             running.delete(key)
           }
         } finally {

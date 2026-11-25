@@ -11,7 +11,11 @@ export type A2uiClientJson = JsonValue
 export interface A2uiClientEnvelope {
   readonly protocol: 'a2ui/v1'
   readonly messages: readonly { readonly version: '1.0'; readonly [key: string]: A2uiClientJson }[]
+  /** Button action names the deployment requires the user to confirm first. */
+  readonly approval?: readonly string[]
 }
+
+const MAX_APPROVAL_NAMES = 8
 
 function isMessage(value: A2uiClientJson): value is A2uiClientEnvelope['messages'][number] {
   if (typeof value !== 'object' || value === null || Array.isArray(value) || value.version !== '1.0') return false
@@ -31,7 +35,13 @@ export function parseA2uiMetadata(metadata: unknown): A2uiClientEnvelope | null 
   const detached = snapshotJsonValue(metadata)
   if (typeof detached !== 'object' || detached === null || Array.isArray(detached)) return null
   const snapshot = detached as Record<string, JsonValue>
-  if (Object.keys(snapshot).length !== 2 || snapshot.protocol !== 'a2ui/v1' || !Array.isArray(snapshot.messages)
+  const keys = Object.keys(snapshot)
+  if (keys.length !== 2 && keys.length !== 3) return null
+  if (snapshot.protocol !== 'a2ui/v1' || !Array.isArray(snapshot.messages)
     || snapshot.messages.length === 0 || !snapshot.messages.every(isMessage)) return null
-  return { protocol: 'a2ui/v1', messages: snapshot.messages }
+  const approval = snapshot.approval
+  if (approval === undefined) return { protocol: 'a2ui/v1', messages: snapshot.messages }
+  if (!Array.isArray(approval) || approval.length === 0 || approval.length > MAX_APPROVAL_NAMES) return null
+  if (!approval.every(entry => typeof entry === 'string')) return null
+  return { protocol: 'a2ui/v1', messages: snapshot.messages, approval }
 }

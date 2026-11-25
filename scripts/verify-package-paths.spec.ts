@@ -65,6 +65,12 @@ describe('historical package references', () => {
       .toEqual([{ file: historicalPath, line: 2, ref: removedReference }])
   })
 
+  it('ignores packages paths inside version-pinned HTTP links', () => {
+    const file = 'docs/upgrade-guide.md'
+    const pinned = `https://github.com/example/project/blob/v1.0.0/${removedReference}#usage`
+    expect(scan(file, `[reference](${pinned})`)).toEqual([])
+  })
+
   it('retains existing-path and hypothetical-package handling outside historical content', () => {
     const file = 'docs/current.md'
     expect(scan(file, [currentReference, 'packages/hypothetical/unpublished/src/types.ts', removedReference].join('\n')))

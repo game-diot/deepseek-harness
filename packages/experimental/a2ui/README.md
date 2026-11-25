@@ -34,7 +34,7 @@ Mount the plugin beside the tool registry:
     maxBytes: 65536
 ```
 
-The tool accepts A2UI v1 `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` messages. The first subset admits only the Basic Catalog `Card`, `Column`, `Text`, and `Button` components. Component lists are non-empty; each Surface contains the canonical `root`, rejects duplicate ids, missing references, cycles, and unreachable components, and revalidates the complete graph after component updates. Component and surface ids use Unicode identifier syntax. Button action context values admit JSON literals, arrays, literal objects, and `@path` bindings; function calls are outside this subset.
+The tool accepts A2UI v1 `createSurface`, `updateComponents`, `updateDataModel`, and `deleteSurface` messages. `createSurface` admits every Basic Catalog v1.0 component plus the package's three business components under their own Catalog id. Component lists are non-empty; each Surface contains the canonical `root`, rejects duplicate ids, missing references, cycles, and unreachable components, and revalidates the complete graph after component updates. Component and surface ids are bounded non-control strings. Button action context values admit JSON literals, arrays, literal objects, and `@path` bindings; this implementation admits only the `event` Action variant, while `functionCall` remains deferred.
 
 `maxMessages` limits messages in one call, `maxComponents` limits the total components carried by that call, and `maxBytes` limits the UTF-8 size of the canonical envelope after validation. Invalid input fails as `ToolArgsError` with code `INVALID_ARGS`; no partial metadata is published.
 
@@ -53,6 +53,20 @@ The canonical value and metadata use the discriminator `protocol: "a2ui/v1"`. Th
 
 -----
 
+<a id="business-catalog"></a>
+## Business catalog
+
+Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with four components for task and metric interfaces:
+
+| Component | Fields |
+|---|---|
+| `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
+| `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
+| `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
+| `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`), `child` |
+
+A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card. `ActionButton` applies `local:set` and `local:toggle` through the owning Surface data model without contacting the Agent; its `agent` variant dispatches one ordinary A2UI event.
+
 <a id="model-experience"></a>
 ## Model Experience
 
@@ -69,6 +83,20 @@ Fixed schema cost while the tool is visible.
 #### KV Cache effect
 
 Prefix-stable while the tool definition and visibility remain unchanged.
+
+### Prompt section
+
+#### What the model sees
+
+A prompt section registered at the `TOOL_A2UI` order tells the model that interactive interfaces belong in `a2ui_render`: a card, form, table, checklist, wizard, or dashboard panel is drawn through the tool, and asking for one does not mean writing generator scripts, HTML, CSS, or JavaScript or starting a preview server. Writing files stays reserved for code the user keeps in their project.
+
+#### Token effect
+
+A fixed short paragraph per request while the plugin is mounted.
+
+#### KV Cache effect
+
+Prefix-stable: the section text does not vary between requests.
 
 ### Tool results and task context
 
@@ -89,9 +117,16 @@ Append-only; each result follows the reusable request prefix.
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Separate Client renderer** — this Host package persists metadata; the optional `dsh-client-ui-a2ui` package renders it.
-- **Restricted protocol subset** — every Basic Catalog v1.0 component is admitted with its catalog fields and data-model bindings. Renderer-side `checks`, data-driven `ChildList` templates, and AG-UI state snapshots/deltas stay deferred; arbitrary CSS, inline HTML, and animation are deliberately outside the catalog, whose styling surface is limited to `variant`, `weight`, `justify`, `align`, `fit`, `axis`, and `direction`.
+- **Restricted protocol subset** — every Basic Catalog v1.0 component is admitted with its catalog fields, data-model bindings, and data-driven `ChildList` templates, plus renderer-side `checks` on the checkable components. Checks accept only the catalog's `required`, `regex`, `length`, `numeric`, `email`, `and`, `or`, and `not`; the regex dialect rejects backreferences, lookarounds, named groups, and Unicode property escapes, and the formatting and action functions stay deferred. AG-UI state snapshots/deltas stay deferred too; arbitrary CSS, inline HTML, and animation are deliberately outside the catalog, whose styling surface is limited to `variant`, `weight`, `justify`, `align`, `fit`, `axis`, and `direction`.
+
+- **Template bindings are relative** — inside a `ChildList` template the renderer resolves bindings against the data-model item, so an absolute path renders empty; the Host rejects it instead of shipping a silent blank cell.
+
 - **Message-based action return** — the optional Client submits bounded structured actions through native user messages; no dedicated Session event exists yet.
 - **Inline Markdown only** — the renderers support `strong`, `emphasis`, and `code` spans plus line breaks; HTML, images, and links stay literal text, matching the catalog's stated Markdown limits.
+- **Surface theme tokens** — `createSurface.metadata.extensions.dsh_theme` carries closed `tone` (`neutral`/`info`/`success`/`warning`/`danger`), `density` (`compact`/`comfortable`/`spacious`), and `textScale` (`sm`/`md`/`lg`) tokens, which renderers map onto catalog spacing, type, and accent values. Free-form colours, sizes, and CSS stay rejected.
+- **Action approval** — configure `approvalActions` with the Button action names a renderer must confirm. Matched names are recorded in the Tool result metadata as `approval`, and the Client shows a confirmation step before it submits the action.
+- **Incremental updates compose complete successors when enabled** — with `allowIncremental` the tool remembers each Session's Surfaces (up to 32) and turns `updateComponents`, `updateDataModel`, and `deleteSurface` into a complete `createSurface` any renderer can draw from scratch, so a stateless client renders the same result. It defaults to `false`, where such a call instead fails with guidance to send a complete `createSurface`.
+- **Incremental messages are shape-checked** — the tool remembers up to 32 surface ids per Session, so `updateComponents`, `updateDataModel`, and `deleteSurface` may target a surface an earlier call created. For those cross-call messages only component shapes are validated, because this call holds no graph for the surface; the Client renderer enforces the full graph. The memory is process-lifetime and per Session.
 
 <a id="dev-note"></a>
 ### Dev Note

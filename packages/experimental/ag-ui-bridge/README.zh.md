@@ -14,6 +14,7 @@ kind: "package-reference"
 ## 目录
 
 - [使用本包](#use-this-package)
+- [从其他客户端接入](#consuming-from-another-client)
 - [行为](#behavior)
 - [模型体验](#model-experience)
 - [已知限制与延期工作](#known-limitations-and-deferred-work)
@@ -24,9 +25,24 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-只在实验 Profile 中挂载，设置必填的 `provider` 和 `model`，并按需配置 `path`、`maxBodyBytes`、`maxThreads` 和 `maxHistoryBytes`。命名路由要求已鉴权 Peer，只接受 `POST`，校验 `RunAgentInput`，拒绝同一 Thread 的并发 Run，并在插件卸载时清理所有 Bridge 拥有的 Agent。
+只在实验 Profile 中挂载，设置必填的 `provider` 和 `model`，并按需配置 `path`、`maxBodyBytes`、`maxThreads`、`maxHistoryBytes` 与 `sessionCwd`。`sessionCwd` 是 Bridge 创建 Session 时记录的项目目录；不设置时 Session 会落到存储的无 cwd 分区，Web 的 Workspace 视图无法打开。命名路由要求已鉴权 Peer，只接受 `POST`，校验 `RunAgentInput`，拒绝同一 Thread 的并发 Run，并在插件卸载时清理所有 Bridge 拥有的 Agent。
 
 设置 `demo: true` 会在 `<path>/demo` 提供一个自包含页面：它向本端点提交请求、显示原始事件流，并用普通 DOM 渲染宿主准入的 A2UI Basic Catalog 子集。它用于在浏览器里观察 Bridge，不是产品渲染器，默认关闭。
+
+<a id="consuming-from-another-client"></a>
+## 从其他客户端接入
+
+任何 AG-UI 客户端都能渲染 A2UI，无需引入 dsh。把它指向已认证源上的 `POST <path>`，发送标准 `RunAgentInput`（只带一条新的用户文本消息），再从本次 Run 的状态里读取 Surface：
+
+| 读取内容 | 到达位置 |
+|---|---|
+| 本次 Turn 的 A2UI 消息 | `STATE_SNAPSHOT` → `snapshot.a2ui`（`{ protocol, messages, approval? }`） |
+| 同一载荷，供只处理自定义事件的客户端 | `CUSTOM`，`name: 'a2ui'`，可用 `emitCustomEvent: false` 关闭 |
+| 文本与 Tool 活动 | 标准 `TEXT_MESSAGE_*` 与 `TOOL_CALL_*` 事件 |
+| 暂停中的审批 | `RUN_FINISHED` 携带 `interrupt` outcome；在下一次 Run 中带 `resume` 续接 |
+
+`example: true` 提供的页面就是这样一个完整客户端：只 import `@ag-ui/client`，持有一个 `HttpAgent`，从快照绘制组件。`@a2ui/react` 渲染器接受同一批消息，因此 React 客户端只替换绘制层，不动传输层。
+
 
 <a id="behavior"></a>
 ## 行为
@@ -57,8 +73,9 @@ Bridge 不改变可复用 Prompt 前缀。
 - **历史只来自本 Bridge** — Thread 历史只在该进程产出后存在。对未知 Thread 回放任何历史以 `DSH_AG_UI_HISTORY_UNREPLAYABLE` 失败；回放前缀与记录不一致以 `DSH_AG_UI_HISTORY_DIVERGED` 失败；超过 `maxHistoryBytes` 的请求以 `DSH_AG_UI_HISTORY_TOO_LARGE` 失败。
 - **中断的流会终结该 Thread** — 一旦 Run 已写出事件而响应随后中断，Client 无法重现已投递前缀，因此 Bridge 会解除该绑定、释放其 `maxThreads` 名额，后续 Run 以 `DSH_AG_UI_HISTORY_UNUSABLE` 失败。背压按写入失败处理：Bridge 取消该 Run 并终结 Thread，而不是留下无法校验的部分历史。
 - **进程内 Thread 绑定** — 按 Principal 隔离的绑定不会跨进程重启保留，也还没有把外部 Thread 标识持久映射到 DSH Session。
-- **延期的协议面** — AG-UI 的 State 快照与增量、Interrupt、多模态输入、客户端 Tools 以及 protobuf 传输均未支持。
-- **A2UI 走 Tool 数据** — 规范化 Surface 消息在 Tool 结果之后以 `a2ui` 命名 `CUSTOM` 事件到达；没有使用 AG-UI 的 State 或 Activity 通道，且 demo 页面只渲染本宿主准入的 Basic Catalog 子集。
+- **独立示例页**——设置 `example: true` 会在 `<path>/example` 提供一页只依赖已发布 `@ag-ui/client` 的实现，从 `STATE_SNAPSHOT` 渲染 A2UI；其 bundle 由 `pnpm --filter @deepseek-ai/dsh-ag-ui-bridge build:example` 生成。
+- **中断为可选能力**——开启 `interruptOnApproval` 后，工具的审批问题会让 Run 以 interrupt 结果结束，同一 thread 的下一次 Run 通过 `resume` 作答。中断待决期间该 thread 拒绝普通 Run；超过 `interruptTimeoutMs` 未作答按 `cancelled` 结算并退役该 thread。State 增量、多模态输入、客户端 Tools 与 protobuf 传输仍未支持。
+- **A2UI 走 Tool 数据** — 规范化 Surface 消息在 Tool 结果之后同时以 AG-UI State 快照（`snapshot.a2ui`）与（兼容保留的）`a2ui` 命名 `CUSTOM` 事件到达；`emitStateSnapshot` 与 `emitCustomEvent` 可分别关闭。demo 页面只渲染本宿主准入的 Basic Catalog 子集。
 
 <a id="dev-note"></a>
 ### 开发备注

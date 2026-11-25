@@ -1,9 +1,13 @@
 import { EventEmitter } from 'node:events'
 import { PassThrough, Readable } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
+import type { CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import { WebServer, type WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { AgentRegistry, type AgentHandle } from '@deepseek-ai/dsh-agent'
 import { describe, expect, it, vi } from 'vitest'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { HttpAgent } from '@ag-ui/client'
 import { apply, type Config } from '../src/index.ts'
 
 class ResponseFixture extends EventEmitter {
@@ -38,7 +42,7 @@ function setup(config: Partial<Config> = {}) {
   const webServer = Object.assign(Object.create(WebServer.prototype), {
     register: vi.fn((value: WebRoute) => { route = value; routes.push(value); return release }),
   }) as WebServer
-  const create = vi.fn<() => Promise<AgentHandle>>()
+  const create = vi.fn<(options: CreateAgentOptions) => Promise<AgentHandle>>()
   const agents = Object.assign(Object.create(AgentRegistry.prototype), { create }) as AgentRegistry
   ctx.provide('webServer', webServer)
   ctx.provide('agents', agents)
@@ -106,6 +110,45 @@ async function post(route: WebRoute | undefined, value: object, response = new R
 }
 
 describe('AG-UI bridge route', () => {
+  it('serves the published AG-UI client over HTTP', async () => {
+    const fixture = setup()
+    await fixture.fiber.await()
+    const route = fixture.route()
+    if (route === undefined) throw new Error('route missing')
+    fixture.create.mockImplementation(async () => handle(fixture.ctx, 'tool').value)
+
+    // A real socket: the published client owns the request, framing, and SSE parse.
+    const server = createServer((req, res) => {
+      const chunks: Uint8Array[] = []
+      req.on('data', (chunk: Uint8Array) => { chunks.push(chunk) })
+      req.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8')
+        const proxied = Object.assign(Readable.from([Buffer.from(body)]), {
+          method: req.method,
+          headers: req.headers,
+        })
+        void route.handler(proxied as never, res, peer() as never)
+      })
+    })
+    await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve) })
+    try {
+      const port = (server.address() as AddressInfo).port
+      const agent = new HttpAgent({ url: `http://127.0.0.1:${String(port)}/ag-ui/run`, threadId: 'thread-1', agentId: 'example' })
+      agent.addMessage({ id: 'user-1', role: 'user', content: 'hello' })
+      const seen: string[] = []
+      await agent.runAgent({ runId: 'run-1' }, {
+        onEvent: ({ event }) => { seen.push(event.type) },
+      })
+      expect(seen).toContain('RUN_STARTED')
+      expect(seen).toContain('TOOL_CALL_START')
+      expect(seen).toContain('RUN_FINISHED')
+    } finally {
+      await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
+      await fixture.fiber.dispose()
+    }
+  })
+
+
   it('registers the authenticated route and rejects transport and strict-input violations', async () => {
     const fixture = setup()
     await fixture.fiber.await()
@@ -399,6 +442,25 @@ describe('AG-UI bridge route', () => {
     await fixture.fiber.dispose()
   })
 
+  it('records the configured project directory on the Sessions it creates', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, sessionCwd: '/tmp/bridge-workspace' })
+    fixture.create.mockResolvedValue(handle(fixture.ctx, 'success').value)
+    await fixture.fiber.await()
+    await post(fixture.route(), input())
+    expect(fixture.create).toHaveBeenCalledOnce()
+    expect(fixture.create.mock.calls[0]?.[0]).toMatchObject({ meta: { cwd: '/tmp/bridge-workspace' } })
+    await fixture.fiber.dispose()
+  })
+
+  it('falls back to the host process directory when no project directory is configured', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    fixture.create.mockResolvedValue(handle(fixture.ctx, 'success').value)
+    await fixture.fiber.await()
+    await post(fixture.route(), input())
+    expect(typeof fixture.create.mock.calls[0]?.[0].meta?.cwd).toBe('string')
+    await fixture.fiber.dispose()
+  })
+
   it('reserves capacity during creation and rejects a concurrent Run on the same Thread', async () => {
     const fixture = setup({ maxBodyBytes: 10_000, maxThreads: 1 })
     let resolveCreate!: (value: AgentHandle) => void
@@ -585,6 +647,273 @@ describe('AG-UI bridge route', () => {
     expect(response.body).toContain('"name":"a2ui"')
     expect(response.body).toContain('createSurface')
     await fixture.fiber.dispose()
+  })
+
+  it('carries the A2UI payload on the state channel as well as the custom event', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: [{ version: '1.0', createSurface: { surfaceId: 's1' } }] },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).toContain('STATE_SNAPSHOT')
+    expect(response.body).toContain('"a2ui"')
+    expect(response.body).toContain('CUSTOM')
+    await fixture.fiber.dispose()
+  })
+
+  it('omits the custom event when the deployment disables it', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, emitCustomEvent: false })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: [{ version: '1.0', createSurface: { surfaceId: 's1' } }] },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).toContain('STATE_SNAPSHOT')
+    expect(response.body).not.toContain('"name":"a2ui"')
+    await fixture.fiber.dispose()
+  })
+
+  it('forwards approval names and honours a disabled state channel', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, emitStateSnapshot: false })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: {
+          protocol: 'a2ui/v1',
+          messages: [{ version: '1.0', createSurface: { surfaceId: 's1' } }],
+          approval: ['submitForm'],
+        },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).not.toContain('STATE_SNAPSHOT')
+    expect(response.body).toContain('CUSTOM')
+    expect(response.body).toContain('submitForm')
+    await fixture.fiber.dispose()
+  })
+
+  it('pauses the run on an approval and continues it from a resume', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+
+    const approval = (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', {
+      agent: created.agent, toolName: 'write_file', callId: 'call-1', reason: 'needs permission',
+    }, () => Promise.resolve('unavailable'))
+
+    const paused = await run
+    expect(paused.body).toContain('"type":"interrupt"')
+    expect(paused.body).toContain('needs permission')
+    expect(paused.body).toContain('write_file')
+
+    const interruptId = /"interrupts":\[\{"id":"([^"]+)"/.exec(paused.body)?.[1]
+    expect(interruptId).toBeDefined()
+
+    const invalidAnswer = await post(fixture.route(), {
+      ...input(),
+      runId: 'run-bad',
+      resume: [{ interruptId: interruptId as string, status: 'resolved', payload: { outcome: 'maybe' } }],
+    })
+    expect(invalidAnswer.status).toBe(400)
+    expect(invalidAnswer.body).toContain('DSH_AG_UI_INVALID_REQUEST')
+
+    const resumed = post(fixture.route(), {
+      ...input(),
+      runId: 'run-2',
+      resume: [{
+        interruptId: interruptId as string,
+        status: 'resolved',
+        payload: { outcome: 'allowed-once' },
+      }],
+    })
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await expect(approval).resolves.toBe('allowed-once')
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const finished = await resumed
+    expect(finished.body).toContain('RUN_STARTED')
+    expect(finished.body).toContain('RUN_FINISHED')
+    await fixture.fiber.dispose()
+  })
+
+  it('rejects a normal run and an unknown resume while an interrupt is pending', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    const approval = (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', {
+      agent: created.agent, toolName: 'write_file',
+    }, () => Promise.resolve('unavailable'))
+    await run
+
+    const blocked = await post(fixture.route(), { ...input(), runId: 'run-2' })
+    expect(blocked.status).toBe(409)
+    expect(blocked.body).toContain('DSH_AG_UI_INTERRUPT_PENDING')
+
+    const unknown = await post(fixture.route(), {
+      ...input(),
+      runId: 'run-3',
+      resume: [{ interruptId: 'not-a-real-id', status: 'resolved', payload: { outcome: 'rejected' } }],
+    })
+    expect(unknown.status).toBe(400)
+    expect(unknown.body).toContain('DSH_AG_UI_UNKNOWN_INTERRUPT')
+
+    // Leave no pending approval behind for teardown.
+    const expired = await Promise.race([approval, new Promise(resolve => setTimeout(() => { resolve('pending') }, 50))])
+    expect(expired).toBe('pending')
+    await fixture.fiber.dispose()
+  })
+
+  it('cancels a pending interrupt after its timeout and retires the thread', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true, interruptTimeoutMs: 1000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    const approval = (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', { agent: created.agent, toolName: 'write_file' }, () => Promise.resolve('unavailable'))
+    await run
+    await expect(approval).resolves.toBe('cancelled')
+
+    const after = await post(fixture.route(), { ...input(), runId: 'run-2' })
+    expect(after.status).toBe(409)
+    expect(after.body).toContain('DSH_AG_UI_HISTORY_UNUSABLE')
+    await fixture.fiber.dispose()
+  }, 10_000)
+
+  it('ignores approvals that belong to an Agent this bridge does not own', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000, interruptOnApproval: true })
+    await fixture.fiber.await()
+    const outsider = handle(fixture.ctx, 'pending')
+    const outcome = await (fixture.ctx as unknown as {
+      waterfall(name: string, payload: unknown, next: () => Promise<string>): Promise<string>
+    }).waterfall('approval/request', {
+      agent: outsider.agent, toolName: 'write_file',
+    }, () => Promise.resolve('unavailable'))
+    expect(outcome).toBe('unavailable')
+    await fixture.fiber.dispose()
+  })
+
+  it('skips the a2ui custom event when the tool result metadata is malformed', async () => {
+    const fixture = setup({ maxBodyBytes: 10_000 })
+    const created = handle(fixture.ctx, 'pending')
+    fixture.create.mockResolvedValue(created.value)
+    await fixture.fiber.await()
+    const run = post(fixture.route(), input())
+    await vi.waitFor(() => { expect(created.agent.followup).toHaveBeenCalledOnce() })
+    fixture.ctx.emit('agent/inbox/claimed', {
+      agent: created.agent, message: created.agent.followup.mock.calls[0]?.[0],
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'tool/result',
+      data: {
+        message: { source: { callId: 'call-a2ui' }, content: [{ type: 'text', text: 'accepted' }] },
+        meta: { protocol: 'a2ui/v1', messages: 'not-an-array' },
+      },
+    } as never)
+    fixture.ctx.emit('session/event', created.session as never, {
+      type: 'turn/end', data: { reason: { kind: 'completed' } },
+    } as never)
+    const response = await run
+    expect(response.body).not.toContain('"name":"a2ui"')
+    await fixture.fiber.dispose()
+  })
+
+  it('serves the standalone example page and its bundle only when enabled', async () => {
+    const disabled = setup()
+    await disabled.fiber.await()
+    expect(disabled.routes.some(route => route.path === '/ag-ui/run/example')).toBe(false)
+    await disabled.fiber.dispose()
+
+    const enabled = setup({ example: true })
+    await enabled.fiber.await()
+    const page = enabled.routes.find(route => route.path === '/ag-ui/run/example')
+    const bundle = enabled.routes.find(route => route.path === '/ag-ui/run/example/client.js')
+    expect(page).toMatchObject({ kind: 'exact', auth: 'required' })
+
+    const html = new ResponseFixture()
+    await page?.handler(request('GET') as never, html as never, peer() as never)
+    expect(html.status).toBe(200)
+    expect(html.headers['content-type']).toContain('text/html')
+    expect(html.body).toContain('client.js')
+
+    const htmlRejected = new ResponseFixture()
+    await page?.handler(request('POST') as never, htmlRejected as never, peer() as never)
+    expect(htmlRejected.status).toBe(405)
+
+    const script = new ResponseFixture()
+    await bundle?.handler(request('GET') as never, script as never, peer() as never)
+    // The bundle is built by `build:example`; without it the route reports a stable code.
+    expect([200, 404]).toContain(script.status)
+    if (script.status === 200) expect(script.headers['content-type']).toContain('javascript')
+    else expect(script.body).toContain('DSH_AG_UI_EXAMPLE_UNAVAILABLE')
+
+    const scriptRejected = new ResponseFixture()
+    await bundle?.handler(request('POST') as never, scriptRejected as never, peer() as never)
+    expect(scriptRejected.status).toBe(405)
+    await enabled.fiber.dispose()
   })
 
   it('serves the demo page only when enabled', async () => {

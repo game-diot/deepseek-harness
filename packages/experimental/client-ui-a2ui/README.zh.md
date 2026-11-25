@@ -15,6 +15,7 @@ kind: "package-reference"
 
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
+- [哪些交互留在本地](#what-stays-local)
 - [模型体验](#model-experience)
 - [已知限制与延期工作](#known-limitations-and-deferred-work)
 - [开发备注](#dev-note)
@@ -37,6 +38,13 @@ kind: "package-reference"
 
 -----
 
+<a id="what-stays-local"></a>
+## 哪些交互留在本地
+
+修改绑定值与切换容器都不会产生 Turn：`TextField`、`CheckBox`、`ChoicePicker` 与 `Slider` 把 `@path` 绑定写入卡片的数据模型，`ChildList` 模板据此重新展开，`Tabs` 自行切换面板。浏览器实测：在绑定 `/owner` 的 `TextField` 中输入姓名，读取同一路径的兄弟 `Text` 随之变化，而 Turn 数量保持为一。
+
+Basic Catalog 的 `Button` 始终会到达 Agent。业务目录的 `ActionButton` 新增用于纯显示变化的 `local:set` 与 `local:toggle`，其 `agent` 变体则复用现有事件通道。视图状态使用本地动作，业务操作或模型决策使用 Agent 动作。
+
 <a id="model-experience"></a>
 ## 模型体验
 
@@ -58,7 +66,7 @@ kind: "package-reference"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **仅支持 Basic Catalog 子集**——懒加载渲染器支持本包准入的 Card、Column、Text 和 Button。
+- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `ActionButton`、`TaskCard`、`StatusBadge` 与 `Statistic`。`ActionButton` 的本地 set/toggle 操作不产生 Turn，Agent 变体则走普通动作通道。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
 - **仅支持消息式 Action 回传**——完成 Turn 的按钮通过原生会话输入提交 `userMessage`，缺失时使用稳定的动作名；尚不单独持久化结构化 A2UI Action 事件。
 - **仅做轻量准入**——帧检查不能替代官方 SDK 校验。
 
