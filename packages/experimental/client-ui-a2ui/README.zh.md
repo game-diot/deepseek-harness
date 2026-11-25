@@ -66,7 +66,7 @@ Basic Catalog 的 `Button` 始终会到达 Agent。业务目录的 `ActionButton
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `ActionButton`、`Progress`、`TaskCard`、`StatusBadge` 与 `Statistic`。`ActionButton` 的本地 set/toggle 操作不产生 Turn，Agent 变体则走普通动作通道。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
+- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `ActionButton`、`DataTable`、`Progress`、`TaskCard`、`StatusBadge` 与 `Statistic`。`DataTable` 把有界标量行渲染为支持横向滚动和文本截断的语义化表格；排序、筛选、选择和行级动作仍留待后续。`ActionButton` 的本地 set/toggle 操作不产生 Turn，Agent 变体则走普通动作通道。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
 - **仅支持消息式 Action 回传**——完成 Turn 的按钮通过原生会话输入提交 `userMessage`，缺失时使用稳定的动作名；尚不单独持久化结构化 A2UI Action 事件。
 - **仅做轻量准入**——帧检查不能替代官方 SDK 校验。
 

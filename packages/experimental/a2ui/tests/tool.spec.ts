@@ -93,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -102,6 +102,11 @@ describe('a2ui_render', () => {
           { id: 'expand', component: 'ActionButton', label: '展开', action: { kind: 'local', operation: 'toggle', path: '/expanded' } },
           { id: 'stat', component: 'Statistic', label: '任务', value: '4', trend: { direction: 'up', text: '2' } },
           { id: 'progress', component: 'Progress', label: '处理进度', value: 3, max: 4, tone: 'info' },
+          {
+            id: 'table', component: 'DataTable', label: '任务列表',
+            columns: [{ key: 'name', label: '任务' }, { key: 'done', label: '完成', align: 'center' }],
+            rows: [{ id: 'T-1', cells: { name: '复盘', done: true } }], emptyText: '暂无任务',
+          },
         ],
       },
     }])
@@ -112,10 +117,37 @@ describe('a2ui_render', () => {
       createSurface: {
         surfaceId: 'basic',
         catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-        components: [{ id: 'root', component: 'TaskCard', title: 'no' }],
+        components: [{
+          id: 'root', component: 'DataTable', label: 'no',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: 'none',
+        }],
       },
     }])
     expect(refused.isError).toBe(true)
+  })
+
+  it.each([
+    {
+      name: 'duplicate column keys',
+      columns: [{ key: 'name', label: '任务' }, { key: 'name', label: '重复' }],
+      rows: [],
+    },
+    {
+      name: 'duplicate row ids',
+      columns: [{ key: 'name', label: '任务' }],
+      rows: [{ id: 'T-1', cells: { name: '一' } }, { id: 'T-1', cells: { name: '二' } }],
+    },
+  ])('rejects DataTable $name', async ({ columns, rows }) => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{ id: 'root', component: 'DataTable', label: '任务列表', columns, rows, emptyText: '暂无任务' }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('duplicate')
   })
 
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {

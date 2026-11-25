@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
 import { catalogs, TASK_CATALOG_ID, taskCatalog } from '../src/client/catalogs.ts'
-import { ActionButtonView, ProgressView } from '../src/client/business-components.tsx'
+import { ActionButtonView, DataTableView, ProgressView } from '../src/client/business-components.tsx'
 
 afterEach(cleanup)
 
@@ -33,6 +33,7 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(taskCatalog.components.has('Statistic')).toBe(true)
     expect(taskCatalog.components.has('ActionButton')).toBe(true)
     expect(taskCatalog.components.has('Progress')).toBe(true)
+    expect(taskCatalog.components.has('DataTable')).toBe(true)
     expect(basicCatalog.components.has('Card')).toBe(true)
     expect(basicCatalog.components.has('TaskCard')).toBe(false)
     expect(catalogs).toHaveLength(2)
@@ -65,6 +66,34 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(indeterminate.getAttribute('data-indeterminate')).toBe('true')
   })
 
+  it('renders semantic rows in column order and one spanning empty state', () => {
+    const table = render(<DataTableView
+      label="任务列表"
+      columns={[
+        { key: 'name', label: '任务名称' },
+        { key: 'owner', label: '负责人' },
+        { key: 'done', label: '完成', align: 'center' },
+      ]}
+      rows={[
+        { id: 'T-1', cells: { owner: '林嘉怡', name: '季度增长复盘报告', done: false } },
+        { id: 'T-2', cells: { name: '发布说明', owner: null, done: true } },
+      ]}
+      emptyText="暂无任务"
+    />)
+    expect(table.getByRole('table', { name: '任务列表' })).toBeTruthy()
+    expect(table.getAllByRole('columnheader').map(node => node.textContent)).toEqual(['任务名称', '负责人', '完成'])
+    expect(table.getAllByRole('row')[1]?.textContent).toBe('季度增长复盘报告林嘉怡false')
+    expect(table.getAllByRole('row')[2]?.textContent).toBe('发布说明true')
+    table.unmount()
+
+    const empty = render(<DataTableView
+      label="任务列表" columns={[{ key: 'name', label: '任务名称' }, { key: 'owner', label: '负责人' }]}
+      rows={[]} emptyText="暂无任务"
+    />)
+    const cell = empty.getByRole('cell', { name: '暂无任务' })
+    expect(cell.getAttribute('colspan')).toBe('2')
+  })
+
   it('updates the data model locally or dispatches one Agent event', () => {
     const set = vi.fn()
     const dispatchAction = vi.fn(() => Promise.resolve())
@@ -94,6 +123,17 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     }} context={context as never} />)
     fireEvent.click(agent.getByRole('button', { name: '完成' }))
     expect(dispatchAction).toHaveBeenCalledWith({ event: { name: 'completeTask', context: { taskId: 'T-1' } } })
+  })
+
+  it('refuses duplicate DataTable keys in the Client catalog', () => {
+    const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
+    expect(() => {
+      processor.processMessages([board(TASK_CATALOG_ID, [{
+        id: 'root', component: 'DataTable', label: '任务列表', emptyText: '暂无任务',
+        columns: [{ key: 'name', label: '任务' }, { key: 'name', label: '重复' }], rows: [],
+      }])] as ProcessableMessagePayload)
+    }).toThrow()
+    processor.dispose()
   })
 
   it('refuses the business components under the Basic Catalog identifier', () => {

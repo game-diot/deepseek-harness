@@ -261,6 +261,36 @@ const component = z.discriminatedUnion('component', [
   }),
   z.strictObject({
     id: componentId,
+    component: z.literal('DataTable'),
+    label: z.string().min(1).max(200),
+    columns: z.array(z.strictObject({
+      key: componentId,
+      label: z.string().min(1).max(100),
+      align: z.enum(['start', 'center', 'end']).optional(),
+    })).min(1).max(12),
+    rows: z.array(z.strictObject({
+      id: componentId,
+      cells: z.record(componentId, z.union([z.string(), z.number(), z.boolean(), z.null()])),
+    })).max(100),
+    emptyText: z.string().min(1).max(200),
+  }).superRefine((value, ctx) => {
+    const columnKeys = new Set<string>()
+    for (const [index, column] of value.columns.entries()) {
+      if (columnKeys.has(column.key)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate column key "${column.key}"`, path: ['columns', index, 'key'] })
+      }
+      columnKeys.add(column.key)
+    }
+    const rowIds = new Set<string>()
+    for (const [index, row] of value.rows.entries()) {
+      if (rowIds.has(row.id)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate row id "${row.id}"`, path: ['rows', index, 'id'] })
+      }
+      rowIds.add(row.id)
+    }
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('StatusBadge'),
     label: dynamicString,
     tone: z.enum(SURFACE_TONE).optional(),
@@ -286,7 +316,7 @@ const component = z.discriminatedUnion('component', [
 ])
 
 /** Component names this renderer adds beside the Basic Catalog. */
-const TASK_COMPONENTS = new Set(['ActionButton', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
+const TASK_COMPONENTS = new Set(['ActionButton', 'DataTable', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
   tone: SURFACE_TONE,
@@ -368,6 +398,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
     case 'ActionButton': return []
+    case 'DataTable': return []
     case 'Progress': return []
     case 'TaskCard': return value.child === undefined ? [] : [value.child]
     case 'StatusBadge': return []

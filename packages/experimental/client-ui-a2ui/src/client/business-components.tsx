@@ -157,6 +157,81 @@ const progress = createComponentImplementation({
   }),
 }, ({ props }) => <ProgressView {...props as ProgressProps} />)
 
+type TableCell = string | number | boolean | null
+type DataTableProps = {
+  readonly label: string
+  readonly columns: readonly {
+    readonly key: string
+    readonly label: string
+    readonly align?: 'start' | 'center' | 'end'
+  }[]
+  readonly rows: readonly {
+    readonly id: string
+    readonly cells: Readonly<Record<string, TableCell>>
+  }[]
+  readonly emptyText: string
+}
+
+function cellText(value: TableCell | undefined): string {
+  return value === undefined || value === null ? '' : String(value)
+}
+
+/**
+ * Render bounded scalar records as a semantic, horizontally scrollable table.
+ * @param props - accessible label, columns, rows, and caller-owned empty text.
+ * @returns one read-only table.
+ */
+export function DataTableView({ label, columns, rows, emptyText }: DataTableProps) {
+  return <div className={css.tableScroll}>
+    <table className={css.dataTable} aria-label={label}>
+      <thead>
+        <tr>{columns.map(column => <th key={column.key} scope="col" data-align={column.align ?? 'start'}>
+          {column.label}
+        </th>)}</tr>
+      </thead>
+      <tbody>{rows.length === 0
+        ? <tr><td className={css.tableEmpty} colSpan={columns.length}>{emptyText}</td></tr>
+        : rows.map(row => <tr key={row.id}>{columns.map((column) => {
+          const text = cellText(row.cells[column.key])
+          return <td key={column.key} data-align={column.align ?? 'start'} title={text || undefined}>{text}</td>
+        })}</tr>)}</tbody>
+    </table>
+  </div>
+}
+
+const tableId = z.string().min(1).max(64).regex(/^[^\p{Cc}]+$/u)
+const tableColumn = z.strictObject({
+  key: tableId,
+  label: z.string().min(1).max(100),
+  align: z.enum(['start', 'center', 'end']).optional(),
+})
+const tableRow = z.strictObject({
+  id: tableId,
+  cells: z.record(tableId, z.union([z.string(), z.number(), z.boolean(), z.null()])),
+})
+const dataTableProps = z.strictObject({
+  label: z.string().min(1).max(200),
+  columns: z.array(tableColumn).min(1).max(12),
+  rows: z.array(tableRow).max(100),
+  emptyText: z.string().min(1).max(200),
+}).superRefine((value, ctx) => {
+  const columns = new Set<string>()
+  for (const [index, column] of value.columns.entries()) {
+    if (columns.has(column.key)) ctx.addIssue({ code: 'custom', message: 'duplicate column key', path: ['columns', index, 'key'] })
+    columns.add(column.key)
+  }
+  const rows = new Set<string>()
+  for (const [index, row] of value.rows.entries()) {
+    if (rows.has(row.id)) ctx.addIssue({ code: 'custom', message: 'duplicate row id', path: ['rows', index, 'id'] })
+    rows.add(row.id)
+  }
+})
+
+const dataTable = createComponentImplementation({
+  name: 'DataTable',
+  schema: dataTableProps,
+}, ({ props }) => <DataTableView {...props as DataTableProps} />)
+
 const badge = createComponentImplementation({
   name: 'StatusBadge',
   schema: z.strictObject({ label: z.string(), tone: tone.optional() }),
@@ -209,7 +284,7 @@ const statistic = createComponentImplementation({
 </div>)
 
 /** Implementations keyed by the name the model sends. */
-export const taskComponents = [actionButton, progress, badge, taskCard, statistic] as const
+export const taskComponents = [actionButton, dataTable, progress, badge, taskCard, statistic] as const
 
 /** Children a Surface may place inside a business component. */
 export type BusinessComponentChild = ReactNode

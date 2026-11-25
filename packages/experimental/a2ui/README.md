@@ -56,11 +56,12 @@ The canonical value and metadata use the discriminator `protocol: "a2ui/v1"`. Th
 <a id="business-catalog"></a>
 ## Business catalog
 
-Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with five components for task and metric interfaces:
+Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with six components for task and metric interfaces:
 
 | Component | Fields |
 |---|---|
 | `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
+| `DataTable` | `label`, 1–12 columns, up to 100 scalar rows, `emptyText`; duplicate column keys and row ids are rejected |
 | `Progress` | `label`, optional `value`/`max`, `tone`; missing `value` renders indeterminate progress |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
