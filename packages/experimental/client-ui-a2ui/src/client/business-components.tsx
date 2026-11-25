@@ -157,6 +157,86 @@ const progress = createComponentImplementation({
   }),
 }, ({ props }) => <ProgressView {...props as ProgressProps} />)
 
+type BarChartProps = {
+  readonly title: string
+  readonly categories: readonly string[]
+  readonly series: readonly { readonly name: string; readonly values: readonly number[] }[]
+  readonly emptyText: string
+}
+
+/**
+ * Render a bounded grouped bar chart whose coordinates and palette the Host owns.
+ * @param props - title, category labels, numeric series, and caller-owned empty text.
+ * @returns a themed SVG plus a screen-reader value summary.
+ */
+export function BarChartView({ title, categories, series, emptyText }: BarChartProps) {
+  if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
+  const maximum = Math.max(1, ...series.flatMap(item => item.values))
+  const plot = { left: 24, top: 12, width: 552, height: 188 }
+  const groupWidth = plot.width / categories.length
+  const clusterWidth = groupWidth * 0.72
+  const barWidth = clusterWidth / series.length
+  return <figure className={css.chart}>
+    <figcaption className={css.chartTitle}>{title}</figcaption>
+    <div className={css.chartLegend}>{series.map((item, index) => <span key={item.name}>
+      <i data-series={String(index)} />{item.name}
+    </span>)}</div>
+    <svg className={css.barChart} viewBox="0 0 600 236" role="img" aria-label={title}>
+      <line className={css.chartAxis} x1={plot.left} y1={plot.top + plot.height} x2={plot.left + plot.width} y2={plot.top + plot.height} />
+      {categories.map((category, categoryIndex) => {
+        const clusterLeft = plot.left + categoryIndex * groupWidth + (groupWidth - clusterWidth) / 2
+        return <g key={category}>
+          {series.map((item, seriesIndex) => {
+            const value = item.values[categoryIndex] ?? 0
+            const height = (value / maximum) * plot.height
+            return <rect
+              key={item.name} className={css.chartBar} data-series={String(seriesIndex)} data-testid="bar-chart-bar"
+              x={clusterLeft + seriesIndex * barWidth + 1} y={plot.top + plot.height - height}
+              width={Math.max(1, barWidth - 2)} height={height} rx={2}
+            />
+          })}
+          <text className={css.chartCategory} x={plot.left + categoryIndex * groupWidth + groupWidth / 2} y={222} textAnchor="middle">
+            {category}
+          </text>
+        </g>
+      })}
+    </svg>
+    <ul className={css.visuallyHidden}>{categories.map((category, categoryIndex) => <li key={category}>
+      {category}：{series.map(item => `${item.name} ${String(item.values[categoryIndex] ?? 0)}`).join('；')}
+    </li>)}</ul>
+  </figure>
+}
+
+const chartString = z.string().min(1)
+const barChartProps = z.strictObject({
+  type: z.literal('bar'),
+  title: chartString,
+  categories: z.array(chartString).max(12),
+  series: z.array(z.strictObject({
+    name: chartString, values: z.array(z.number().min(0)).max(12),
+  })).max(4),
+  emptyText: chartString,
+}).superRefine((value, ctx) => {
+  if ((value.categories.length === 0) !== (value.series.length === 0)) {
+    ctx.addIssue({ code: 'custom', message: 'empty categories and series must be empty together', path: ['series'] })
+  }
+  const categories = new Set<string>()
+  for (const [index, category] of value.categories.entries()) {
+    if (categories.has(category)) ctx.addIssue({ code: 'custom', message: 'duplicate category', path: ['categories', index] })
+    categories.add(category)
+  }
+  const names = new Set<string>()
+  for (const [index, item] of value.series.entries()) {
+    if (item.values.length !== value.categories.length) ctx.addIssue({ code: 'custom', message: 'values must match categories', path: ['series', index, 'values'] })
+    if (names.has(item.name)) ctx.addIssue({ code: 'custom', message: 'duplicate series name', path: ['series', index, 'name'] })
+    names.add(item.name)
+  }
+})
+
+const chart = createComponentImplementation({ name: 'Chart', schema: barChartProps }, ({ props }) => (
+  <BarChartView {...props as BarChartProps} />
+))
+
 type TableCell = string | number | boolean | null
 type DataTableProps = {
   readonly label: string
@@ -382,7 +462,7 @@ const statistic = createComponentImplementation({
 </div>)
 
 /** Implementations keyed by the name the model sends. */
-export const taskComponents = [actionButton, dataTable, progress, badge, taskCard, statistic] as const
+export const taskComponents = [actionButton, chart, dataTable, progress, badge, taskCard, statistic] as const
 
 /** Children a Surface may place inside a business component. */
 export type BusinessComponentChild = ReactNode

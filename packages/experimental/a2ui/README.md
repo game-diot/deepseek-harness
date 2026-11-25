@@ -56,11 +56,12 @@ The canonical value and metadata use the discriminator `protocol: "a2ui/v1"`. Th
 <a id="business-catalog"></a>
 ## Business catalog
 
-Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with six components for task and metric interfaces:
+Besides the Basic Catalog, the validator admits one business catalog, `https://dsh.dev/a2ui/catalogs/task/v1`, with seven components for task and metric interfaces:
 
 | Component | Fields |
 |---|---|
 | `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
+| `Chart` | `type: "bar"`, `title`, up to 12 categories and four non-negative numeric series, `emptyText`; each series must match the category count |
 | `DataTable` | `label`, 1–12 columns with optional local sorting, up to 100 scalar rows, `emptyText`, optional local filter labels, and up to four Agent row actions; duplicate column keys, row ids, and action names are rejected |
 | `Progress` | `label`, optional `value`/`max`, `tone`; missing `value` renders indeterminate progress |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
@@ -70,6 +71,8 @@ Besides the Basic Catalog, the validator admits one business catalog, `https://d
 A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card. `ActionButton` applies `local:set` and `local:toggle` through the owning Surface data model without contacting the Agent; its `agent` variant dispatches one ordinary A2UI event.
 
 `DataTable` row actions send their action name with the selected `rowId` and scalar row object. A row action with `confirm` opens a local confirmation first; cancellation sends nothing, and confirmation only dispatches the event—the Client never mutates or deletes a row. If the same action name is also configured in `approvalActions`, the renderer's outer approval step still applies.
+
+`Chart` currently admits grouped bar charts only. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, series colours, theme adaptation, and the screen-reader summary. Line, pie, tooltip, and chart actions remain deferred.
 
 <a id="model-experience"></a>
 ## Model Experience

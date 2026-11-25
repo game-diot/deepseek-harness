@@ -261,6 +261,35 @@ const component = z.discriminatedUnion('component', [
   }),
   z.strictObject({
     id: componentId,
+    component: z.literal('Chart'),
+    type: z.literal('bar'),
+    title: z.string().min(1).max(200),
+    categories: z.array(z.string().min(1).max(40)).max(12),
+    series: z.array(z.strictObject({
+      name: z.string().min(1).max(60),
+      values: z.array(z.number().min(0)).max(12),
+    })).max(4),
+    emptyText: z.string().min(1).max(200),
+  }).superRefine((value, ctx) => {
+    if ((value.categories.length === 0) !== (value.series.length === 0)) {
+      ctx.addIssue({ code: 'custom', message: 'empty Chart categories and series must be empty together', path: ['series'] })
+    }
+    const categories = new Set<string>()
+    for (const [index, category] of value.categories.entries()) {
+      if (categories.has(category)) ctx.addIssue({ code: 'custom', message: `duplicate Chart category "${category}"`, path: ['categories', index] })
+      categories.add(category)
+    }
+    const seriesNames = new Set<string>()
+    for (const [index, item] of value.series.entries()) {
+      if (item.values.length !== value.categories.length) {
+        ctx.addIssue({ code: 'custom', message: `Chart series "${item.name}" values must match categories`, path: ['series', index, 'values'] })
+      }
+      if (seriesNames.has(item.name)) ctx.addIssue({ code: 'custom', message: `duplicate Chart series "${item.name}"`, path: ['series', index, 'name'] })
+      seriesNames.add(item.name)
+    }
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('DataTable'),
     label: z.string().min(1).max(200),
     columns: z.array(z.strictObject({
@@ -342,7 +371,7 @@ const component = z.discriminatedUnion('component', [
 ])
 
 /** Component names this renderer adds beside the Basic Catalog. */
-const TASK_COMPONENTS = new Set(['ActionButton', 'DataTable', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
+const TASK_COMPONENTS = new Set(['ActionButton', 'Chart', 'DataTable', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
   tone: SURFACE_TONE,
@@ -424,6 +453,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
     case 'ActionButton': return []
+    case 'Chart': return []
     case 'DataTable': return []
     case 'Progress': return []
     case 'TaskCard': return value.child === undefined ? [] : [value.child]

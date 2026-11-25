@@ -93,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -115,6 +115,12 @@ describe('a2ui_render', () => {
                 confirm: { prompt: '确认删除？', confirmLabel: '确认删除', cancelLabel: '取消' },
               },
             ],
+          },
+          {
+            id: 'chart', component: 'Chart', type: 'bar', title: '任务完成量',
+            categories: ['周一', '周二'],
+            series: [{ name: '完成', values: [3, 5] }, { name: '新增', values: [4, 2] }],
+            emptyText: '暂无数据',
           },
         ],
       },
@@ -187,6 +193,22 @@ describe('a2ui_render', () => {
     }])
     expect(result.isError).toBe(true)
     expect(resultText(result)).toContain(error)
+  })
+
+  it('rejects a Chart series whose values do not match its categories', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'chart', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Chart', type: 'bar', title: '任务完成量',
+          categories: ['周一', '周二'], series: [{ name: '完成', values: [3] }], emptyText: '暂无数据',
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('must match categories')
   })
 
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
 import { catalogs, TASK_CATALOG_ID, taskCatalog } from '../src/client/catalogs.ts'
-import { ActionButtonView, DataTableView, ProgressView } from '../src/client/business-components.tsx'
+import { ActionButtonView, BarChartView, DataTableView, ProgressView } from '../src/client/business-components.tsx'
 
 afterEach(cleanup)
 
@@ -34,6 +34,7 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(taskCatalog.components.has('ActionButton')).toBe(true)
     expect(taskCatalog.components.has('Progress')).toBe(true)
     expect(taskCatalog.components.has('DataTable')).toBe(true)
+    expect(taskCatalog.components.has('Chart')).toBe(true)
     expect(basicCatalog.components.has('Card')).toBe(true)
     expect(basicCatalog.components.has('TaskCard')).toBe(false)
     expect(catalogs).toHaveLength(2)
@@ -125,6 +126,26 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     fireEvent.click(sort)
     expect(sort.closest('th')?.getAttribute('aria-sort')).toBe('none')
     expect(table.getAllByRole('row')[1]?.textContent).toBe('发布说明周明')
+  })
+
+  it('renders grouped bars, a legend, and an accessible value summary', () => {
+    const chart = render(<BarChartView
+      title="任务完成量"
+      categories={['周一', '周二']}
+      series={[{ name: '完成', values: [3, 5] }, { name: '新增', values: [4, 2] }]}
+      emptyText="暂无数据"
+    />)
+    expect(chart.getByRole('img', { name: '任务完成量' })).toBeTruthy()
+    expect(chart.getAllByTestId('bar-chart-bar')).toHaveLength(4)
+    expect(chart.getByText('完成')).toBeTruthy()
+    expect(chart.getByText('新增')).toBeTruthy()
+    expect(chart.getByText('周一：完成 3；新增 4')).toBeTruthy()
+    expect(chart.getByText('周二：完成 5；新增 2')).toBeTruthy()
+    chart.unmount()
+
+    const empty = render(<BarChartView title="空图表" categories={[]} series={[]} emptyText="暂无数据" />)
+    expect(empty.getByText('暂无数据')).toBeTruthy()
+    expect(empty.queryByRole('img')).toBeNull()
   })
 
   it('dispatches row actions and confirms destructive actions before dispatch', () => {
