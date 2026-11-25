@@ -56,11 +56,12 @@ kind: "package-reference"
 <a id="business-catalog"></a>
 ## 业务目录
 
-除 Basic Catalog 外，校验器还准入一个业务目录 `https://dsh.dev/a2ui/catalogs/task/v1`，其中包含四个用于任务与指标界面的组件：
+除 Basic Catalog 外，校验器还准入一个业务目录 `https://dsh.dev/a2ui/catalogs/task/v1`，其中包含五个用于任务与指标界面的组件：
 
 | 组件 | 字段 |
 |---|---|
 | `ActionButton` | `label`、`variant`（`default`/`primary`/`danger`/`borderless`）、`action`（`local:set`、`local:toggle` 或 `agent`） |
+| `Progress` | `label`、可选 `value`/`max`、`tone`；缺少 `value` 时渲染不确定进度 |
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
 | `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
 | `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`）、`child` |

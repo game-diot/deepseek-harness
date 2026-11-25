@@ -253,6 +253,14 @@ const component = z.discriminatedUnion('component', [
   }),
   z.strictObject({
     id: componentId,
+    component: z.literal('Progress'),
+    label: dynamicString,
+    value: dynamicNumber.optional(),
+    max: dynamicNumber.optional(),
+    tone: z.enum(SURFACE_TONE).optional(),
+  }),
+  z.strictObject({
+    id: componentId,
     component: z.literal('StatusBadge'),
     label: dynamicString,
     tone: z.enum(SURFACE_TONE).optional(),
@@ -278,7 +286,7 @@ const component = z.discriminatedUnion('component', [
 ])
 
 /** Component names this renderer adds beside the Basic Catalog. */
-const TASK_COMPONENTS = new Set(['ActionButton', 'StatusBadge', 'Statistic', 'TaskCard'])
+const TASK_COMPONENTS = new Set(['ActionButton', 'Progress', 'StatusBadge', 'Statistic', 'TaskCard'])
 /** Closed token sets for the `dsh_theme` surface extension. */
 export const SURFACE_THEME = {
   tone: SURFACE_TONE,
@@ -360,6 +368,7 @@ function referencedIds(value: ParsedComponent): readonly string[] {
     case 'Row': return childIds(value.children)
     case 'Button': return [value.child]
     case 'ActionButton': return []
+    case 'Progress': return []
     case 'TaskCard': return value.child === undefined ? [] : [value.child]
     case 'StatusBadge': return []
     case 'Statistic': return []

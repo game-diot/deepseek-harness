@@ -1,6 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -13,6 +14,7 @@ let callNumber = 0
 
 async function setup(config: A2ui.Config = {}) {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SystemPrompt, { personaPrefix: '' })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(A2ui, config)
@@ -21,6 +23,7 @@ async function setup(config: A2ui.Config = {}) {
 
 async function setupDirect() {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SystemPrompt, { personaPrefix: '' })
   await ctx.plugin(ToolRuntime)
   A2ui.apply(ctx, {})
@@ -90,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -98,6 +101,7 @@ describe('a2ui_render', () => {
           { id: 'doneLabel', component: 'Text', text: '完成' },
           { id: 'expand', component: 'ActionButton', label: '展开', action: { kind: 'local', operation: 'toggle', path: '/expanded' } },
           { id: 'stat', component: 'Statistic', label: '任务', value: '4', trend: { direction: 'up', text: '2' } },
+          { id: 'progress', component: 'Progress', label: '处理进度', value: 3, max: 4, tone: 'info' },
         ],
       },
     }])
@@ -116,6 +120,7 @@ describe('a2ui_render', () => {
 
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SystemPrompt, { personaPrefix: '' })
     await ctx.plugin(ToolRuntime)
     const sections: string[] = []

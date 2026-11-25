@@ -45,6 +45,68 @@
   border-color: var(--dsw-alias-border-l2);
 }
 
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.progressValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+}
+
+.progressTrack {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.progressFill {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dsw-alias-brand-primary);
+  transition: width 180ms ease;
+}
+
+.progress[data-tone='success'] .progressFill {
+  background: var(--dsw-alias-hovercard-state-done);
+}
+
+.progress[data-tone='warning'] .progressFill,
+.progress[data-tone='danger'] .progressFill {
+  background: var(--dsw-alias-hovercard-state-error);
+}
+
+.progressTrack[data-indeterminate='true'] .progressFill {
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressTrack[data-indeterminate='true'] .progressFill {
+    animation: none;
+  }
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

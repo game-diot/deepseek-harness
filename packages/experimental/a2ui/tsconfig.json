@@ -24,6 +24,9 @@
       "path": "../../core/system-prompt"
     },
     {
+      "path": "../../session/session-projection"
+    },
+    {
       "path": "../../util/values"
     }
   ]

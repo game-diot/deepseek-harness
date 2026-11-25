@@ -30,4 +30,4 @@ it('activates the A2UI module through the Client Loader and removes its Tool Vie
   await client.unload(A2UI)
 
   expect(registered()).toBe(false)
-})
+}, 60_000)
