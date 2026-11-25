@@ -262,7 +262,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Chart'),
-    type: z.literal('bar'),
+    type: z.enum(['bar', 'line']),
     title: z.string().min(1).max(200),
     categories: z.array(z.string().min(1).max(40)).max(12),
     series: z.array(z.strictObject({

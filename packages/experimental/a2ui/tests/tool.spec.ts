@@ -93,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart', 'trend'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -121,6 +121,10 @@ describe('a2ui_render', () => {
             categories: ['周一', '周二'],
             series: [{ name: '完成', values: [3, 5] }, { name: '新增', values: [4, 2] }],
             emptyText: '暂无数据',
+          },
+          {
+            id: 'trend', component: 'Chart', type: 'line', title: '任务趋势',
+            categories: ['周一', '周二'], series: [{ name: '完成', values: [3, 5] }], emptyText: '暂无数据',
           },
         ],
       },

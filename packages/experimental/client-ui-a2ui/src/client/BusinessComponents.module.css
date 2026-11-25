@@ -162,6 +162,34 @@
   fill: var(--dsw-alias-brand-primary);
 }
 
+.chartPoint,
+.chartLine {
+  fill: none;
+  stroke: var(--dsw-alias-brand-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chartPoint {
+  fill: var(--dsw-alias-card-fill);
+}
+
+.chartPoint[data-series='1'],
+.chartLine[data-series='1'] {
+  stroke: var(--dsw-alias-hovercard-state-done);
+}
+
+.chartPoint[data-series='2'],
+.chartLine[data-series='2'] {
+  stroke: var(--dsw-alias-hovercard-state-error);
+}
+
+.chartPoint[data-series='3'],
+.chartLine[data-series='3'] {
+  stroke: var(--dsw-alias-label-secondary);
+}
+
 .chartAxis {
   stroke: var(--dsw-alias-border-l2);
   stroke-width: 1;

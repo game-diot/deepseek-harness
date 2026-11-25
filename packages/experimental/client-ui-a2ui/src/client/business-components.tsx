@@ -164,6 +164,23 @@ type BarChartProps = {
   readonly emptyText: string
 }
 
+type ChartProps = BarChartProps & { readonly type: 'bar' | 'line' }
+
+const CHART_PLOT = { left: 24, top: 12, width: 552, height: 188 } as const
+
+function ChartFrame({ title, series, categories, children }: BarChartProps & { readonly children: ReactNode }) {
+  return <figure className={css.chart}>
+    <figcaption className={css.chartTitle}>{title}</figcaption>
+    <div className={css.chartLegend}>{series.map((item, index) => <span key={item.name}>
+      <i data-series={String(index)} />{item.name}
+    </span>)}</div>
+    {children}
+    <ul className={css.visuallyHidden}>{categories.map((category, categoryIndex) => <li key={category}>
+      {category}：{series.map(item => `${item.name} ${String(item.values[categoryIndex] ?? 0)}`).join('；')}
+    </li>)}</ul>
+  </figure>
+}
+
 /**
  * Render a bounded grouped bar chart whose coordinates and palette the Host owns.
  * @param props - title, category labels, numeric series, and caller-owned empty text.
@@ -172,15 +189,11 @@ type BarChartProps = {
 export function BarChartView({ title, categories, series, emptyText }: BarChartProps) {
   if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
   const maximum = Math.max(1, ...series.flatMap(item => item.values))
-  const plot = { left: 24, top: 12, width: 552, height: 188 }
+  const plot = CHART_PLOT
   const groupWidth = plot.width / categories.length
   const clusterWidth = groupWidth * 0.72
   const barWidth = clusterWidth / series.length
-  return <figure className={css.chart}>
-    <figcaption className={css.chartTitle}>{title}</figcaption>
-    <div className={css.chartLegend}>{series.map((item, index) => <span key={item.name}>
-      <i data-series={String(index)} />{item.name}
-    </span>)}</div>
+  return <ChartFrame title={title} categories={categories} series={series} emptyText={emptyText}>
     <svg className={css.barChart} viewBox="0 0 600 236" role="img" aria-label={title}>
       <line className={css.chartAxis} x1={plot.left} y1={plot.top + plot.height} x2={plot.left + plot.width} y2={plot.top + plot.height} />
       {categories.map((category, categoryIndex) => {
@@ -201,15 +214,45 @@ export function BarChartView({ title, categories, series, emptyText }: BarChartP
         </g>
       })}
     </svg>
-    <ul className={css.visuallyHidden}>{categories.map((category, categoryIndex) => <li key={category}>
-      {category}：{series.map(item => `${item.name} ${String(item.values[categoryIndex] ?? 0)}`).join('；')}
-    </li>)}</ul>
-  </figure>
+  </ChartFrame>
+}
+
+/**
+ * Render bounded line series with Host-owned paths, points, and palette.
+ * @param props - title, category labels, numeric series, and caller-owned empty text.
+ * @returns a themed SVG plus the shared screen-reader value summary.
+ */
+export function LineChartView({ title, categories, series, emptyText }: BarChartProps) {
+  if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
+  const maximum = Math.max(1, ...series.flatMap(item => item.values))
+  const plot = CHART_PLOT
+  const x = (index: number): number => plot.left + (categories.length === 1
+    ? plot.width / 2
+    : (index / (categories.length - 1)) * plot.width)
+  const y = (value: number): number => plot.top + plot.height - (value / maximum) * plot.height
+  return <ChartFrame title={title} categories={categories} series={series} emptyText={emptyText}>
+    <svg className={css.barChart} viewBox="0 0 600 236" role="img" aria-label={title}>
+      <line className={css.chartAxis} x1={plot.left} y1={plot.top + plot.height} x2={plot.left + plot.width} y2={plot.top + plot.height} />
+      {series.map((item, seriesIndex) => <g key={item.name}>
+        <path
+          className={css.chartLine} data-series={String(seriesIndex)} data-testid="line-chart-path"
+          d={item.values.map((value, index) => `${index === 0 ? 'M' : 'L'} ${String(x(index))} ${String(y(value))}`).join(' ')}
+        />
+        {item.values.map((value, index) => <circle
+          key={categories[index]} className={css.chartPoint} data-series={String(seriesIndex)} data-testid="line-chart-point"
+          cx={x(index)} cy={y(value)} r={3}
+        />)}
+      </g>)}
+      {categories.map((category, index) => <text
+        key={category} className={css.chartCategory} x={x(index)} y={222} textAnchor="middle"
+      >{category}</text>)}
+    </svg>
+  </ChartFrame>
 }
 
 const chartString = z.string().min(1)
 const barChartProps = z.strictObject({
-  type: z.literal('bar'),
+  type: z.enum(['bar', 'line']),
   title: chartString,
   categories: z.array(chartString).max(12),
   series: z.array(z.strictObject({
@@ -233,9 +276,10 @@ const barChartProps = z.strictObject({
   }
 })
 
-const chart = createComponentImplementation({ name: 'Chart', schema: barChartProps }, ({ props }) => (
-  <BarChartView {...props as BarChartProps} />
-))
+const chart = createComponentImplementation({ name: 'Chart', schema: barChartProps }, ({ props }) => {
+  const value = props as ChartProps
+  return value.type === 'bar' ? <BarChartView {...value} /> : <LineChartView {...value} />
+})
 
 type TableCell = string | number | boolean | null
 type DataTableProps = {

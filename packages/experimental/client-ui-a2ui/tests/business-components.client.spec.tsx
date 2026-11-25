@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
 import { catalogs, TASK_CATALOG_ID, taskCatalog } from '../src/client/catalogs.ts'
-import { ActionButtonView, BarChartView, DataTableView, ProgressView } from '../src/client/business-components.tsx'
+import { ActionButtonView, BarChartView, DataTableView, LineChartView, ProgressView } from '../src/client/business-components.tsx'
 
 afterEach(cleanup)
 
@@ -146,6 +146,20 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     const empty = render(<BarChartView title="空图表" categories={[]} series={[]} emptyText="暂无数据" />)
     expect(empty.getByText('暂无数据')).toBeTruthy()
     expect(empty.queryByRole('img')).toBeNull()
+  })
+
+  it('renders line paths and points with the shared accessible summary', () => {
+    const chart = render(<LineChartView
+      title="任务趋势"
+      categories={['周一', '周二', '周三']}
+      series={[{ name: '完成', values: [3, 5, 4] }, { name: '新增', values: [4, 2, 6] }]}
+      emptyText="暂无数据"
+    />)
+    expect(chart.getByRole('img', { name: '任务趋势' })).toBeTruthy()
+    expect(chart.getAllByTestId('line-chart-path')).toHaveLength(2)
+    expect(chart.getAllByTestId('line-chart-point')).toHaveLength(6)
+    expect(chart.getByText('周一：完成 3；新增 4')).toBeTruthy()
+    expect(chart.getByText('周三：完成 4；新增 6')).toBeTruthy()
   })
 
   it('dispatches row actions and confirms destructive actions before dispatch', () => {
