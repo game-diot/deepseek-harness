@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as A2ui from '../src/index.ts'
@@ -26,6 +27,7 @@ describe('a2ui real Loader composition through cordis.yml', () => {
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
       '- name: cordis:system-prompt',
+      '- name: cordis:session-projection',
       '- name: cordis:tools',
       '- id: a2ui',
       '  name: cordis:a2ui',
@@ -39,6 +41,7 @@ describe('a2ui real Loader composition through cordis.yml', () => {
     await context.plugin(Loader)
     context.loader.builtins.include = Include
     context.loader.builtins['system-prompt'] = SystemPrompt
+    context.loader.builtins['session-projection'] = SessionProjectionRegistry
     context.loader.builtins.tools = ToolRuntime
     context.loader.builtins.a2ui = A2ui
     await context.loader.create({
