@@ -376,6 +376,29 @@
   border-bottom: 0;
 }
 
+.dataTable tr[data-selected='true'] td {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, transparent);
+}
+
+.tableSelection {
+  width: 36px;
+  min-width: 36px;
+  text-align: center !important;
+}
+
+.tableSelection input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+}
+
+.tableSelection input:focus-visible {
+  outline: 2px solid var(--dsw-alias-border-selected);
+  outline-offset: 2px;
+}
+
 .dataTable [data-align='center'] {
   text-align: center;
 }

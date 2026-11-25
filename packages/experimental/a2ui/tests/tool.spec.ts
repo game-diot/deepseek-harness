@@ -107,6 +107,7 @@ describe('a2ui_render', () => {
             columns: [{ key: 'name', label: '任务', sortable: true }, { key: 'done', label: '完成', align: 'center' }],
             rows: [{ id: 'T-1', cells: { name: '复盘', done: true } }], emptyText: '暂无任务',
             filter: { placeholder: '筛选任务', clearLabel: '清空筛选' },
+            selection: { mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务' },
             actionsLabel: '操作',
             rowActions: [
               { label: '完成', name: 'completeTask', variant: 'primary' },
@@ -201,6 +202,23 @@ describe('a2ui_render', () => {
     }])
     expect(result.isError).toBe(true)
     expect(resultText(result)).toContain(error)
+  })
+
+  it('rejects multiple DataTable selection without a select-all label', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table-selection', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'DataTable', label: '任务列表',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: '暂无任务',
+          selection: { mode: 'multiple', label: '选择任务' },
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('selectAllLabel')
   })
 
   it('rejects a Chart series whose values do not match its categories', async () => {

@@ -6,7 +6,7 @@
  * fonts, or spacing, and a redesign changes these files rather than a prompt.
  */
 
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import z from 'zod'
 import { createComponentImplementation } from '@a2ui/react'
 import { componentId } from '@a2ui/web_core/v1_0'
@@ -410,6 +410,9 @@ type DataTableProps = {
   }[]
   readonly emptyText: string
   readonly filter?: { readonly placeholder: string; readonly clearLabel: string }
+  readonly selection?:
+    | { readonly mode: 'single'; readonly label: string }
+    | { readonly mode: 'multiple'; readonly label: string; readonly selectAllLabel: string }
   readonly actionsLabel?: string
   readonly rowActions?: readonly {
     readonly label: string
@@ -424,17 +427,33 @@ function cellText(value: TableCell | undefined): string {
   return value === undefined || value === null ? '' : String(value)
 }
 
+function VisibleRowsCheckbox({
+  label, checked, indeterminate, onChange,
+}: {
+  readonly label: string
+  readonly checked: boolean
+  readonly indeterminate: boolean
+  readonly onChange: () => void
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (input.current !== null) input.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return <input ref={input} type="checkbox" aria-label={label} checked={checked} onChange={onChange} />
+}
+
 /**
  * Render bounded scalar records as a semantic, horizontally scrollable table.
  * @param props - accessible label, columns, rows, and caller-owned empty text.
  * @returns one read-only table.
  */
 export function DataTableView({
-  label, columns, rows, emptyText, filter, actionsLabel, rowActions = [], context,
+  label, columns, rows, emptyText, filter, selection, actionsLabel, rowActions = [], context,
 }: DataTableProps & { readonly context?: DataTableContext }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null)
   const [pending, setPending] = useState<{ rowId: string; actionName: string } | null>(null)
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
   const visibleRows = useMemo(() => {
     const term = query.trim().toLocaleLowerCase()
     const filtered = term === '' ? [...rows] : rows.filter(row => (
@@ -458,7 +477,30 @@ export function DataTableView({
   const dispatchRowAction = (name: string, row: DataTableProps['rows'][number]): void => {
     void context?.dispatchAction({ event: { name, context: { rowId: row.id, row: row.cells } } })
   }
-  const columnCount = columns.length + (rowActions.length === 0 ? 0 : 1)
+  const rowLabel = (row: DataTableProps['rows'][number]): string => {
+    const firstColumn = columns[0]
+    return firstColumn === undefined ? row.id : cellText(row.cells[firstColumn.key]) || row.id
+  }
+  const toggleRow = (rowId: string): void => {
+    setSelected((current) => {
+      if (selection?.mode === 'single') return current.has(rowId) ? new Set() : new Set([rowId])
+      const next = new Set(current)
+      if (next.has(rowId)) next.delete(rowId)
+      else next.add(rowId)
+      return next
+    })
+  }
+  const allVisibleSelected = visibleRows.length > 0 && visibleRows.every(row => selected.has(row.id))
+  const someVisibleSelected = visibleRows.some(row => selected.has(row.id))
+  const toggleVisibleRows = (): void => {
+    setSelected((current) => {
+      const next = new Set(current)
+      if (allVisibleSelected) for (const row of visibleRows) next.delete(row.id)
+      else for (const row of visibleRows) next.add(row.id)
+      return next
+    })
+  }
+  const columnCount = columns.length + (selection === undefined ? 0 : 1) + (rowActions.length === 0 ? 0 : 1)
   return <div className={css.tableShell}>
     {filter === undefined ? null : <div className={css.tableFilter}>
       <input
@@ -470,7 +512,12 @@ export function DataTableView({
     <div className={css.tableScroll}>
       <table className={css.dataTable} aria-label={label}>
         <thead>
-          <tr>{columns.map(column => <th
+          <tr>{selection === undefined ? null : <th scope="col" className={css.tableSelection}>
+            {selection.mode === 'multiple' ? <VisibleRowsCheckbox
+              label={selection.selectAllLabel} checked={allVisibleSelected}
+              indeterminate={someVisibleSelected && !allVisibleSelected} onChange={toggleVisibleRows}
+            /> : <span className={css.visuallyHidden}>{selection.label}</span>}
+          </th>}{columns.map(column => <th
             key={column.key} scope="col" data-align={column.align ?? 'start'}
             aria-sort={column.sortable === true && sort?.key === column.key ? sort.direction : 'none'}
           >
@@ -483,30 +530,38 @@ export function DataTableView({
         </thead>
         <tbody>{visibleRows.length === 0
           ? <tr><td className={css.tableEmpty} colSpan={columnCount}>{emptyText}</td></tr>
-          : visibleRows.map(row => <tr key={row.id}>{columns.map((column) => {
-            const text = cellText(row.cells[column.key])
-            return <td key={column.key} data-align={column.align ?? 'start'} title={text || undefined}>{text}</td>
-          })}{rowActions.length === 0 ? null : <td className={css.tableActions}>
-            {rowActions.map(action => <button
-              key={action.name} type="button"
-              className={`${css.actionButton} ${ACTION_CLASS[action.variant ?? 'default'] ?? ''}`}
-              onClick={() => {
-                if (action.confirm === undefined) dispatchRowAction(action.name, row)
-                else setPending({ rowId: row.id, actionName: action.name })
-              }}
-            >{action.label}</button>)}
-            {rowActions.map((action) => {
-              if (action.confirm === undefined || pending?.rowId !== row.id || pending.actionName !== action.name) return null
-              return <div key={`${action.name}:confirm`} className={css.tableConfirm} role="group" aria-label={action.confirm.prompt}>
-                <span>{action.confirm.prompt}</span>
-                <button type="button" onClick={() => { setPending(null) }}>{action.confirm.cancelLabel}</button>
-                <button type="button" onClick={() => {
-                  setPending(null)
-                  dispatchRowAction(action.name, row)
-                }}>{action.confirm.confirmLabel}</button>
-              </div>
-            })}
-          </td>}</tr>)}</tbody>
+          : visibleRows.map(row => <tr key={row.id} data-selected={selected.has(row.id) ? 'true' : undefined}>
+            {selection === undefined ? null : <td className={css.tableSelection}>
+              <input
+                type={selection.mode === 'single' ? 'radio' : 'checkbox'}
+                name={selection.mode === 'single' ? `${label}:selection` : undefined}
+                aria-label={`${selection.label}：${rowLabel(row)}`} checked={selected.has(row.id)}
+                onChange={() => { toggleRow(row.id) }}
+              />
+            </td>}{columns.map((column) => {
+              const text = cellText(row.cells[column.key])
+              return <td key={column.key} data-align={column.align ?? 'start'} title={text || undefined}>{text}</td>
+            })}{rowActions.length === 0 ? null : <td className={css.tableActions}>
+              {rowActions.map(action => <button
+                key={action.name} type="button"
+                className={`${css.actionButton} ${ACTION_CLASS[action.variant ?? 'default'] ?? ''}`}
+                onClick={() => {
+                  if (action.confirm === undefined) dispatchRowAction(action.name, row)
+                  else setPending({ rowId: row.id, actionName: action.name })
+                }}
+              >{action.label}</button>)}
+              {rowActions.map((action) => {
+                if (action.confirm === undefined || pending?.rowId !== row.id || pending.actionName !== action.name) return null
+                return <div key={`${action.name}:confirm`} className={css.tableConfirm} role="group" aria-label={action.confirm.prompt}>
+                  <span>{action.confirm.prompt}</span>
+                  <button type="button" onClick={() => { setPending(null) }}>{action.confirm.cancelLabel}</button>
+                  <button type="button" onClick={() => {
+                    setPending(null)
+                    dispatchRowAction(action.name, row)
+                  }}>{action.confirm.confirmLabel}</button>
+                </div>
+              })}
+            </td>}</tr>)}</tbody>
       </table>
     </div>
   </div>
@@ -531,6 +586,14 @@ const dataTableProps = z.strictObject({
   filter: z.strictObject({
     placeholder: z.string().min(1).max(100), clearLabel: z.string().min(1).max(100),
   }).optional(),
+  selection: z.discriminatedUnion('mode', [
+    z.strictObject({ mode: z.literal('single'), label: z.string().min(1).max(100) }),
+    z.strictObject({
+      mode: z.literal('multiple'),
+      label: z.string().min(1).max(100),
+      selectAllLabel: z.string().min(1).max(100),
+    }),
+  ]).optional(),
   actionsLabel: z.string().min(1).max(100).optional(),
   rowActions: z.array(z.strictObject({
     label: z.string().min(1).max(100),

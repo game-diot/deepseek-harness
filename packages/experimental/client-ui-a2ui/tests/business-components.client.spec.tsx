@@ -128,6 +128,65 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(table.getAllByRole('row')[1]?.textContent).toBe('发布说明周明')
   })
 
+  it('selects rows locally and selects only currently visible rows', () => {
+    const table = render(<DataTableView
+      label="任务列表"
+      columns={[{ key: 'name', label: '任务名称' }]}
+      rows={[
+        { id: 'T-1', cells: { name: '季度复盘' } },
+        { id: 'T-2', cells: { name: '发布说明' } },
+        { id: 'T-3', cells: { name: '数据分析' } },
+      ]}
+      emptyText="暂无任务"
+      filter={{ placeholder: '筛选任务', clearLabel: '清空筛选' }}
+      selection={{ mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务' }}
+    />)
+    const task1 = table.getByRole('checkbox', { name: '选择任务：季度复盘' })
+    fireEvent.click(task1)
+    expect((task1 as HTMLInputElement).checked).toBe(true)
+    expect(task1.closest('tr')?.getAttribute('data-selected')).toBe('true')
+    expect((table.getByRole('checkbox', { name: '选择全部可见任务' }) as HTMLInputElement).indeterminate).toBe(true)
+
+    fireEvent.change(table.getByRole('searchbox', { name: '筛选任务' }), { target: { value: '发布' } })
+    fireEvent.click(table.getByRole('checkbox', { name: '选择全部可见任务' }))
+    expect((table.getByRole('checkbox', { name: '选择任务：发布说明' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(table.getByRole('button', { name: '清空筛选' }))
+    expect((table.getByRole('checkbox', { name: '选择任务：季度复盘' }) as HTMLInputElement).checked).toBe(true)
+    expect((table.getByRole('checkbox', { name: '选择任务：发布说明' }) as HTMLInputElement).checked).toBe(true)
+    expect((table.getByRole('checkbox', { name: '选择任务：数据分析' }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('keeps single selection mutually exclusive by stable row id', () => {
+    const table = render(<DataTableView
+      label="任务列表" columns={[{ key: 'name', label: '任务名称', sortable: true }]}
+      rows={[
+        { id: 'T-2', cells: { name: '发布说明' } },
+        { id: 'T-1', cells: { name: '季度复盘' } },
+      ]}
+      emptyText="暂无任务"
+      selection={{ mode: 'single', label: '选择任务' }}
+    />)
+    const first = table.getByRole('radio', { name: '选择任务：发布说明' })
+    const second = table.getByRole('radio', { name: '选择任务：季度复盘' })
+    fireEvent.click(first)
+    fireEvent.click(second)
+    expect((first as HTMLInputElement).checked).toBe(false)
+    expect((second as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(table.getByRole('button', { name: '任务名称' }))
+    expect((table.getByRole('radio', { name: '选择任务：季度复盘' }) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('refuses incomplete selection labels in the Client catalog', () => {
+    const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
+    expect(() => {
+      processor.processMessages([board(TASK_CATALOG_ID, [{
+        id: 'root', component: 'DataTable', label: '任务列表', emptyText: '暂无任务',
+        columns: [{ key: 'name', label: '任务' }], rows: [], selection: { mode: 'multiple', label: '选择任务' },
+      }])] as ProcessableMessagePayload)
+    }).toThrow()
+    processor.dispose()
+  })
+
   it('renders grouped bars, a legend, and an accessible value summary', () => {
     const chart = render(<BarChartView
       title="任务完成量"

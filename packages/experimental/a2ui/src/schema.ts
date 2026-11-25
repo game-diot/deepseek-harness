@@ -318,6 +318,14 @@ const component = z.discriminatedUnion('component', [
       placeholder: z.string().min(1).max(100),
       clearLabel: z.string().min(1).max(100),
     }).optional(),
+    selection: z.discriminatedUnion('mode', [
+      z.strictObject({ mode: z.literal('single'), label: z.string().min(1).max(100) }),
+      z.strictObject({
+        mode: z.literal('multiple'),
+        label: z.string().min(1).max(100),
+        selectAllLabel: z.string().min(1).max(100),
+      }),
+    ]).optional(),
     actionsLabel: z.string().min(1).max(100).optional(),
     rowActions: z.array(z.strictObject({
       label: z.string().min(1).max(100),
