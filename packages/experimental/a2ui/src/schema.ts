@@ -409,8 +409,17 @@ const component = z.discriminatedUnion('component', [
       id: componentId,
       title: z.string().min(1).max(200),
       description: z.string().min(1).max(1000).optional(),
+      summary: z.string().min(1).max(300).optional(),
+      details: z.string().min(1).max(3000).optional(),
+      expandLabel: z.string().min(1).max(100).optional(),
+      collapseLabel: z.string().min(1).max(100).optional(),
       time: z.string().min(1).max(100).optional(),
       tone: z.enum(SURFACE_TONE).optional(),
+    }).superRefine((item, itemCtx) => {
+      const detailCount = [item.summary, item.details, item.expandLabel, item.collapseLabel].filter(value => value !== undefined).length
+      if (detailCount !== 0 && detailCount !== 4) {
+        itemCtx.addIssue({ code: 'custom', message: 'Timeline detail fields must be provided together' })
+      }
     })).max(50),
     emptyText: z.string().min(1).max(200),
   }).superRefine((value, ctx) => {

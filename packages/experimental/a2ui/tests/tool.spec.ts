@@ -268,6 +268,22 @@ describe('a2ui_render', () => {
     expect(resultText(result)).toContain('duplicate Timeline item id')
   })
 
+  it('rejects incomplete Timeline detail fields', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'timeline-details', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Timeline', title: '执行记录', emptyText: '暂无记录',
+          items: [{ id: 'running', title: '分析中', summary: '摘要', details: '详情' }],
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('detail fields must be provided together')
+  })
+
   it('rejects a Chart series whose values do not match its categories', async () => {
     const ctx = await setup()
     const result = await call(ctx, [{

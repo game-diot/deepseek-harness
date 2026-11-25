@@ -67,7 +67,7 @@ kind: "package-reference"
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
 | `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
 | `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`）、`child` |
-| `Timeline` | `title`、最多 50 个 id 唯一且可带 `description`、`time` 与 `tone` 的条目、`emptyText` |
+| `Timeline` | `title`、最多 50 个 id 唯一且可带 `description`、`time`、`tone` 或完整 `summary`/`details`/展开收起文案的条目、`emptyText` |
 
 指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。`TaskCard.child` 指向一个放在卡片操作区的组件，因此一排 `Button` 可以位于卡片内部。`ActionButton` 通过所属 Surface 的数据模型执行 `local:set` 与 `local:toggle`，不会联系 Agent；其 `agent` 变体会派发一次普通 A2UI 事件。
 
@@ -77,7 +77,7 @@ kind: "package-reference"
 
 `Chart` 准入分组柱状图、折线图与单系列环形图。模型提供标签与有限非负数值，渲染器负责 SVG 坐标、弧段、百分比、系列颜色、主题适配、读屏摘要以及鼠标/键盘数值 Tooltip。Tooltip 状态仅留在本地，不发送 Agent 动作。可选 interaction 让柱、点或弧段通过点击、Enter 或 Space 触发一次 Agent 动作，携带图表类型、分类、系列、索引与数值；环形图目标还携带百分比。Client 不修改图表，而是等待后继 Surface。触摸专用 Tooltip 行为、边缘避让、逐目标动作名、缩放与多选仍留待后续。
 
-`Timeline` 使用宿主拥有的节点与连接线渲染语义化有序列表。本切片仅展示，不提供条目展开、动作或 Agent Turn。
+`Timeline` 使用宿主拥有的节点与连接线渲染语义化有序列表。短 `description` 始终可见。带完整 `summary`、`details`、`expandLabel` 与 `collapseLabel` 的条目默认折叠，并按 item id 把详情展开状态保存在 React 本地；折叠详情会离开可访问树。展开不发送 Agent 动作或 Turn。Timeline 条目动作仍留待后续。
 
 <a id="model-experience"></a>
 ## 模型体验

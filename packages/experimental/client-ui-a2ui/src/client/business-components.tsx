@@ -764,6 +764,10 @@ type TimelineProps = {
     readonly id: string
     readonly title: string
     readonly description?: string
+    readonly summary?: string
+    readonly details?: string
+    readonly expandLabel?: string
+    readonly collapseLabel?: string
     readonly time?: string
     readonly tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
   }[]
@@ -776,21 +780,38 @@ type TimelineProps = {
  * @returns a semantic region containing an ordered list or its empty state.
  */
 export function TimelineView({ title, items, emptyText }: TimelineProps) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const toggle = (id: string): void => {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   return <section className={css.timeline} aria-label={title}>
     <h3 className={css.timelineTitle}>{title}</h3>
     {items.length === 0 ? <div className={css.timelineEmpty}>{emptyText}</div> : <ol className={css.timelineList}>
-      {items.map(item => <li
-        key={item.id} className={css.timelineItem} data-tone={item.tone ?? 'neutral'} data-testid="timeline-item"
-      >
-        <span className={css.timelineMarker} aria-hidden="true" />
-        <div className={css.timelineContent}>
-          <div className={css.timelineHeading}>
-            <strong>{item.title}</strong>
-            {item.time === undefined ? null : <time>{item.time}</time>}
+      {items.map((item) => {
+        const isExpanded = expanded.has(item.id)
+        const hasDetails = item.details !== undefined
+        return <li key={item.id} className={css.timelineItem} data-tone={item.tone ?? 'neutral'} data-testid="timeline-item">
+          <span className={css.timelineMarker} aria-hidden="true" />
+          <div className={css.timelineContent}>
+            <div className={css.timelineHeading}>
+              <strong>{item.title}</strong>
+              {item.time === undefined ? null : <time>{item.time}</time>}
+            </div>
+            {item.description === undefined ? null : <p>{item.description}</p>}
+            {item.summary === undefined ? null : <p>{item.summary}</p>}
+            {!hasDetails || !isExpanded ? null : <p className={css.timelineDetails}>{item.details}</p>}
+            {!hasDetails ? null : <button
+              type="button" className={css.timelineToggle} aria-expanded={isExpanded}
+              onClick={() => { toggle(item.id) }}
+            >{isExpanded ? item.collapseLabel : item.expandLabel}</button>}
           </div>
-          {item.description === undefined ? null : <p>{item.description}</p>}
-        </div>
-      </li>)}
+        </li>
+      })}
     </ol>}
   </section>
 }
@@ -799,8 +820,17 @@ const timelineItem = z.strictObject({
   id: tableId,
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(1000).optional(),
+  summary: z.string().min(1).max(300).optional(),
+  details: z.string().min(1).max(3000).optional(),
+  expandLabel: z.string().min(1).max(100).optional(),
+  collapseLabel: z.string().min(1).max(100).optional(),
   time: z.string().min(1).max(100).optional(),
   tone: tone.optional(),
+}).superRefine((item, itemCtx) => {
+  const detailCount = [item.summary, item.details, item.expandLabel, item.collapseLabel].filter(value => value !== undefined).length
+  if (detailCount !== 0 && detailCount !== 4) {
+    itemCtx.addIssue({ code: 'custom', message: 'Timeline detail fields must be provided together' })
+  }
 })
 const timelineProps = z.strictObject({
   title: z.string().min(1).max(200),

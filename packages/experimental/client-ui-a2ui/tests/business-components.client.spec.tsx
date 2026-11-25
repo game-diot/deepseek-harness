@@ -104,6 +104,45 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     processor.dispose()
   })
 
+  it('expands Timeline details locally and independently', () => {
+    const timeline = render(<TimelineView
+      title="任务执行记录"
+      items={[
+        {
+          id: 'running', title: '正在分析数据', summary: '已完成 3 个数据源', details: '正在处理第四个数据源。',
+          expandLabel: '展开分析详情', collapseLabel: '收起分析详情', tone: 'info',
+        },
+        {
+          id: 'warning', title: '发现延迟', summary: '响应时间接近阈值', details: '当前 P95 为 1.8 秒。',
+          expandLabel: '展开延迟详情', collapseLabel: '收起延迟详情', tone: 'warning',
+        },
+      ]}
+      emptyText="暂无执行记录"
+    />)
+    expect(timeline.getByText('已完成 3 个数据源')).toBeTruthy()
+    expect(timeline.queryByText('正在处理第四个数据源。')).toBeNull()
+    expect(timeline.queryByText('当前 P95 为 1.8 秒。')).toBeNull()
+
+    const first = timeline.getByRole('button', { name: '展开分析详情' })
+    fireEvent.click(first)
+    expect(timeline.getByText('正在处理第四个数据源。')).toBeTruthy()
+    expect(first.getAttribute('aria-expanded')).toBe('true')
+    expect(timeline.queryByText('当前 P95 为 1.8 秒。')).toBeNull()
+    fireEvent.click(timeline.getByRole('button', { name: '收起分析详情' }))
+    expect(timeline.queryByText('正在处理第四个数据源。')).toBeNull()
+  })
+
+  it('refuses incomplete Timeline detail fields in the Client catalog', () => {
+    const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
+    expect(() => {
+      processor.processMessages([board(TASK_CATALOG_ID, [{
+        id: 'root', component: 'Timeline', title: '执行记录', emptyText: '暂无记录',
+        items: [{ id: 'running', title: '分析中', summary: '摘要', details: '详情' }],
+      }])] as ProcessableMessagePayload)
+    }).toThrow()
+    processor.dispose()
+  })
+
   it('renders semantic rows in column order and one spanning empty state', () => {
     const table = render(<DataTableView
       label="任务列表"
