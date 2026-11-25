@@ -107,7 +107,10 @@ describe('a2ui_render', () => {
             columns: [{ key: 'name', label: '任务', sortable: true }, { key: 'done', label: '完成', align: 'center' }],
             rows: [{ id: 'T-1', cells: { name: '复盘', done: true } }], emptyText: '暂无任务',
             filter: { placeholder: '筛选任务', clearLabel: '清空筛选' },
-            selection: { mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务' },
+            selection: {
+              mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务', actionsLabel: '批量操作',
+              actions: [{ label: '批量完成', name: 'completeTasks', variant: 'primary' }],
+            },
             actionsLabel: '操作',
             rowActions: [
               { label: '完成', name: 'completeTask', variant: 'primary' },
@@ -219,6 +222,26 @@ describe('a2ui_render', () => {
     }])
     expect(result.isError).toBe(true)
     expect(resultText(result)).toContain('selectAllLabel')
+  })
+
+  it('rejects duplicate DataTable batch action names', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table-batch-actions', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'DataTable', label: '任务列表',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: '暂无任务',
+          selection: {
+            mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务', actionsLabel: '批量操作',
+            actions: [{ label: '完成', name: 'completeTasks' }, { label: '再次完成', name: 'completeTasks' }],
+          },
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain('duplicate batch action name')
   })
 
   it('rejects a Chart series whose values do not match its categories', async () => {

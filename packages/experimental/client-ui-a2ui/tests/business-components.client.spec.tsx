@@ -176,6 +176,69 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect((table.getByRole('radio', { name: '选择任务：季度复盘' }) as HTMLInputElement).checked).toBe(true)
   })
 
+  it('dispatches one batch action with selected ids and scalar row snapshots', () => {
+    const dispatchAction = vi.fn(() => Promise.resolve())
+    const table = render(<DataTableView
+      label="任务列表" columns={[{ key: 'name', label: '任务名称' }]}
+      rows={[
+        { id: 'T-1', cells: { name: '季度复盘' } },
+        { id: 'T-2', cells: { name: '发布说明' } },
+      ]}
+      emptyText="暂无任务"
+      selection={{
+        mode: 'multiple', label: '选择任务', selectAllLabel: '选择全部可见任务', actionsLabel: '批量操作',
+        actions: [
+          { label: '批量完成', name: 'completeTasks', variant: 'primary' },
+          {
+            label: '批量删除', name: 'deleteTasks', variant: 'danger',
+            confirm: { prompt: '确认删除已选任务？', confirmLabel: '确认删除', cancelLabel: '取消' },
+          },
+        ],
+      }}
+      context={{ dispatchAction }}
+    />)
+    const complete = table.getByRole('button', { name: '批量完成' })
+    const remove = table.getByRole('button', { name: '批量删除' })
+    expect((complete as HTMLButtonElement).disabled).toBe(true)
+    expect((remove as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(table.getByRole('checkbox', { name: '选择任务：季度复盘' }))
+    fireEvent.click(table.getByRole('checkbox', { name: '选择任务：发布说明' }))
+    fireEvent.click(complete)
+    expect(dispatchAction).toHaveBeenCalledTimes(1)
+    expect(dispatchAction).toHaveBeenCalledWith({ event: {
+      name: 'completeTasks',
+      context: {
+        selectedRowIds: ['T-1', 'T-2'],
+        selectedRows: [
+          { id: 'T-1', cells: { name: '季度复盘' } },
+          { id: 'T-2', cells: { name: '发布说明' } },
+        ],
+      },
+    } })
+    dispatchAction.mockClear()
+
+    fireEvent.click(remove)
+    expect(table.getByRole('group', { name: '确认删除已选任务？' })).toBeTruthy()
+    expect(dispatchAction).not.toHaveBeenCalled()
+    fireEvent.click(table.getByRole('button', { name: '取消' }))
+    expect(dispatchAction).not.toHaveBeenCalled()
+    fireEvent.click(remove)
+    fireEvent.click(table.getByRole('button', { name: '确认删除' }))
+    expect(dispatchAction).toHaveBeenCalledWith({ event: {
+      name: 'deleteTasks',
+      context: {
+        selectedRowIds: ['T-1', 'T-2'],
+        selectedRows: [
+          { id: 'T-1', cells: { name: '季度复盘' } },
+          { id: 'T-2', cells: { name: '发布说明' } },
+        ],
+      },
+    } })
+    expect(table.getByText('季度复盘')).toBeTruthy()
+    expect(table.getByText('发布说明')).toBeTruthy()
+  })
+
   it('refuses incomplete selection labels in the Client catalog', () => {
     const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
     expect(() => {

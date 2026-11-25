@@ -62,7 +62,7 @@ Besides the Basic Catalog, the validator admits one business catalog, `https://d
 |---|---|
 | `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
 | `Chart` | `type: "bar" | "line" | "pie"`, `title`, categories, non-negative numeric series, `emptyText`; each series must match the category count. Pie charts require 2–6 categories, exactly one series, and a positive total |
-| `DataTable` | `label`, 1–12 columns with optional local sorting, up to 100 scalar rows, `emptyText`, optional local filter and single/multiple selection labels, and up to four Agent row actions; duplicate column keys, row ids, and action names are rejected |
+| `DataTable` | `label`, 1–12 columns with optional local sorting, up to 100 scalar rows, `emptyText`, optional local filter and single/multiple selection, up to four multiple-selection batch actions, and up to four Agent row actions; duplicate column keys, row ids, and action names are rejected |
 | `Progress` | `label`, optional `value`/`max`, `tone`; missing `value` renders indeterminate progress |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
@@ -72,7 +72,7 @@ A Surface that names the Basic Catalog still refuses them, so a third-party rend
 
 `DataTable` row actions send their action name with the selected `rowId` and scalar row object. A row action with `confirm` opens a local confirmation first; cancellation sends nothing, and confirmation only dispatches the event—the Client never mutates or deletes a row. If the same action name is also configured in `approvalActions`, the renderer's outer approval step still applies.
 
-`DataTable` selection remains local React state keyed by stable row ids. Sorting and filtering preserve selected rows; select-all changes only currently visible rows. Selection changes send no Agent action and do not survive a successor Surface.
+`DataTable` selection remains local React state keyed by stable row ids. Sorting and filtering preserve selected rows; select-all changes only currently visible rows. Selection changes send no Agent action and do not survive a successor Surface. Multiple selection may expose batch actions: disabled with no selection, they dispatch one Agent event containing `selectedRowIds` and scalar `selectedRows`. Confirmation opens and cancels locally; only confirmation dispatches. The Client neither mutates rows nor clears selection and waits for a successor Surface.
 
 `Chart` admits grouped bar charts, line charts, and single-series donut charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, arcs, percentages, series colours, theme adaptation, the screen-reader summary, and pointer/keyboard value tooltips. Tooltip state remains local and sends no Agent action. Touch-specific tooltip behavior, edge avoidance, and chart actions remain deferred.
 

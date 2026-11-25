@@ -412,7 +412,18 @@ type DataTableProps = {
   readonly filter?: { readonly placeholder: string; readonly clearLabel: string }
   readonly selection?:
     | { readonly mode: 'single'; readonly label: string }
-    | { readonly mode: 'multiple'; readonly label: string; readonly selectAllLabel: string }
+    | {
+      readonly mode: 'multiple'
+      readonly label: string
+      readonly selectAllLabel: string
+      readonly actionsLabel?: string
+      readonly actions?: readonly {
+        readonly label: string
+        readonly name: string
+        readonly variant?: 'default' | 'primary' | 'danger' | 'borderless'
+        readonly confirm?: { readonly prompt: string; readonly confirmLabel: string; readonly cancelLabel: string }
+      }[]
+    }
   readonly actionsLabel?: string
   readonly rowActions?: readonly {
     readonly label: string
@@ -453,6 +464,7 @@ export function DataTableView({
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null)
   const [pending, setPending] = useState<{ rowId: string; actionName: string } | null>(null)
+  const [pendingBatch, setPendingBatch] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
   const visibleRows = useMemo(() => {
     const term = query.trim().toLocaleLowerCase()
@@ -500,6 +512,16 @@ export function DataTableView({
       return next
     })
   }
+  const selectedRows = rows.filter(row => selected.has(row.id))
+  const dispatchBatchAction = (name: string): void => {
+    void context?.dispatchAction({ event: {
+      name,
+      context: {
+        selectedRowIds: selectedRows.map(row => row.id),
+        selectedRows: selectedRows.map(row => ({ id: row.id, cells: row.cells })),
+      },
+    } })
+  }
   const columnCount = columns.length + (selection === undefined ? 0 : 1) + (rowActions.length === 0 ? 0 : 1)
   return <div className={css.tableShell}>
     {filter === undefined ? null : <div className={css.tableFilter}>
@@ -508,6 +530,29 @@ export function DataTableView({
         onChange={(event) => { setQuery(event.currentTarget.value) }}
       />
       <button type="button" onClick={() => { setQuery('') }}>{filter.clearLabel}</button>
+    </div>}
+    {selection?.mode !== 'multiple' || selection.actions === undefined ? null : <div
+      className={css.tableBatchActions} role="group" aria-label={selection.actionsLabel}
+    >
+      {selection.actions.map(action => <button
+        key={action.name} type="button" disabled={selectedRows.length === 0}
+        className={`${css.actionButton} ${ACTION_CLASS[action.variant ?? 'default'] ?? ''}`}
+        onClick={() => {
+          if (action.confirm === undefined) dispatchBatchAction(action.name)
+          else setPendingBatch(action.name)
+        }}
+      >{action.label}</button>)}
+      {selection.actions.map((action) => {
+        if (action.confirm === undefined || pendingBatch !== action.name) return null
+        return <div key={`${action.name}:confirm`} className={css.tableConfirm} role="group" aria-label={action.confirm.prompt}>
+          <span>{action.confirm.prompt}</span>
+          <button type="button" onClick={() => { setPendingBatch(null) }}>{action.confirm.cancelLabel}</button>
+          <button type="button" onClick={() => {
+            setPendingBatch(null)
+            dispatchBatchAction(action.name)
+          }}>{action.confirm.confirmLabel}</button>
+        </div>
+      })}
     </div>}
     <div className={css.tableScroll}>
       <table className={css.dataTable} aria-label={label}>
@@ -586,12 +631,32 @@ const dataTableProps = z.strictObject({
   filter: z.strictObject({
     placeholder: z.string().min(1).max(100), clearLabel: z.string().min(1).max(100),
   }).optional(),
-  selection: z.discriminatedUnion('mode', [
+  selection: z.union([
     z.strictObject({ mode: z.literal('single'), label: z.string().min(1).max(100) }),
     z.strictObject({
       mode: z.literal('multiple'),
       label: z.string().min(1).max(100),
       selectAllLabel: z.string().min(1).max(100),
+      actionsLabel: z.string().min(1).max(100).optional(),
+      actions: z.array(z.strictObject({
+        label: z.string().min(1).max(100),
+        name: z.string().min(1).max(128),
+        variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+        confirm: z.strictObject({
+          prompt: z.string().min(1).max(200),
+          confirmLabel: z.string().min(1).max(100),
+          cancelLabel: z.string().min(1).max(100),
+        }).optional(),
+      })).min(1).max(4).optional(),
+    }).superRefine((selection, selectionCtx) => {
+      if ((selection.actionsLabel === undefined) !== (selection.actions === undefined)) {
+        selectionCtx.addIssue({ code: 'custom', message: 'actionsLabel and batch actions must be provided together', path: ['actions'] })
+      }
+      const names = new Set<string>()
+      for (const [index, action] of (selection.actions ?? []).entries()) {
+        if (names.has(action.name)) selectionCtx.addIssue({ code: 'custom', message: 'duplicate batch action name', path: ['actions', index, 'name'] })
+        names.add(action.name)
+      }
     }),
   ]).optional(),
   actionsLabel: z.string().min(1).max(100).optional(),
