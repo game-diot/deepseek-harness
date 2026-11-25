@@ -6,7 +6,7 @@
  * fonts, or spacing, and a redesign changes these files rather than a prompt.
  */
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useId, useMemo, useState, type ReactNode } from 'react'
 import z from 'zod'
 import { createComponentImplementation } from '@a2ui/react'
 import { componentId } from '@a2ui/web_core/v1_0'
@@ -165,16 +165,34 @@ type BarChartProps = {
 }
 
 type ChartProps = BarChartProps & { readonly type: 'bar' | 'line' }
+type ChartTooltip = {
+  readonly key: string
+  readonly text: string
+  readonly x: number
+  readonly y: number
+}
 
 const CHART_PLOT = { left: 24, top: 12, width: 552, height: 188 } as const
 
-function ChartFrame({ title, series, categories, children }: BarChartProps & { readonly children: ReactNode }) {
+function ChartFrame({
+  title, series, categories, children, tooltip, tooltipId,
+}: BarChartProps & {
+  readonly children: ReactNode
+  readonly tooltip: ChartTooltip | null
+  readonly tooltipId: string
+}) {
   return <figure className={css.chart}>
     <figcaption className={css.chartTitle}>{title}</figcaption>
     <div className={css.chartLegend}>{series.map((item, index) => <span key={item.name}>
       <i data-series={String(index)} />{item.name}
     </span>)}</div>
-    {children}
+    <div className={css.chartPlot}>
+      {children}
+      {tooltip === null ? null : <div
+        id={tooltipId} role="tooltip" className={css.chartTooltip}
+        style={{ left: `${String((tooltip.x / 600) * 100)}%`, top: `${String((tooltip.y / 236) * 100)}%` }}
+      >{tooltip.text}</div>}
+    </div>
     <ul className={css.visuallyHidden}>{categories.map((category, categoryIndex) => <li key={category}>
       {category}：{series.map(item => `${item.name} ${String(item.values[categoryIndex] ?? 0)}`).join('；')}
     </li>)}</ul>
@@ -187,13 +205,18 @@ function ChartFrame({ title, series, categories, children }: BarChartProps & { r
  * @returns a themed SVG plus a screen-reader value summary.
  */
 export function BarChartView({ title, categories, series, emptyText }: BarChartProps) {
+  const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
+  const tooltipId = useId()
   if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
   const maximum = Math.max(1, ...series.flatMap(item => item.values))
   const plot = CHART_PLOT
   const groupWidth = plot.width / categories.length
   const clusterWidth = groupWidth * 0.72
   const barWidth = clusterWidth / series.length
-  return <ChartFrame title={title} categories={categories} series={series} emptyText={emptyText}>
+  return <ChartFrame
+    title={title} categories={categories} series={series} emptyText={emptyText}
+    tooltip={tooltip} tooltipId={tooltipId}
+  >
     <svg className={css.barChart} viewBox="0 0 600 236" role="img" aria-label={title}>
       <line className={css.chartAxis} x1={plot.left} y1={plot.top + plot.height} x2={plot.left + plot.width} y2={plot.top + plot.height} />
       {categories.map((category, categoryIndex) => {
@@ -202,10 +225,21 @@ export function BarChartView({ title, categories, series, emptyText }: BarChartP
           {series.map((item, seriesIndex) => {
             const value = item.values[categoryIndex] ?? 0
             const height = (value / maximum) * plot.height
+            const x = clusterLeft + seriesIndex * barWidth + 1
+            const y = plot.top + plot.height - height
+            const target = {
+              key: `${category}:${item.name}`,
+              text: `${category} · ${item.name} ${String(value)}`,
+              x: x + Math.max(1, barWidth - 2) / 2,
+              y,
+            }
             return <rect
               key={item.name} className={css.chartBar} data-series={String(seriesIndex)} data-testid="bar-chart-bar"
-              x={clusterLeft + seriesIndex * barWidth + 1} y={plot.top + plot.height - height}
-              width={Math.max(1, barWidth - 2)} height={height} rx={2}
+              x={x} y={y} width={Math.max(1, barWidth - 2)} height={height} rx={2}
+              tabIndex={0} aria-label={target.text}
+              aria-describedby={tooltip?.key === target.key ? tooltipId : undefined}
+              onMouseEnter={() => { setTooltip(target) }} onMouseLeave={() => { setTooltip(null) }}
+              onFocus={() => { setTooltip(target) }} onBlur={() => { setTooltip(null) }}
             />
           })}
           <text className={css.chartCategory} x={plot.left + categoryIndex * groupWidth + groupWidth / 2} y={222} textAnchor="middle">
@@ -223,6 +257,8 @@ export function BarChartView({ title, categories, series, emptyText }: BarChartP
  * @returns a themed SVG plus the shared screen-reader value summary.
  */
 export function LineChartView({ title, categories, series, emptyText }: BarChartProps) {
+  const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
+  const tooltipId = useId()
   if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
   const maximum = Math.max(1, ...series.flatMap(item => item.values))
   const plot = CHART_PLOT
@@ -230,7 +266,10 @@ export function LineChartView({ title, categories, series, emptyText }: BarChart
     ? plot.width / 2
     : (index / (categories.length - 1)) * plot.width)
   const y = (value: number): number => plot.top + plot.height - (value / maximum) * plot.height
-  return <ChartFrame title={title} categories={categories} series={series} emptyText={emptyText}>
+  return <ChartFrame
+    title={title} categories={categories} series={series} emptyText={emptyText}
+    tooltip={tooltip} tooltipId={tooltipId}
+  >
     <svg className={css.barChart} viewBox="0 0 600 236" role="img" aria-label={title}>
       <line className={css.chartAxis} x1={plot.left} y1={plot.top + plot.height} x2={plot.left + plot.width} y2={plot.top + plot.height} />
       {series.map((item, seriesIndex) => <g key={item.name}>
@@ -238,10 +277,22 @@ export function LineChartView({ title, categories, series, emptyText }: BarChart
           className={css.chartLine} data-series={String(seriesIndex)} data-testid="line-chart-path"
           d={item.values.map((value, index) => `${index === 0 ? 'M' : 'L'} ${String(x(index))} ${String(y(value))}`).join(' ')}
         />
-        {item.values.map((value, index) => <circle
-          key={categories[index]} className={css.chartPoint} data-series={String(seriesIndex)} data-testid="line-chart-point"
-          cx={x(index)} cy={y(value)} r={3}
-        />)}
+        {item.values.map((value, index) => {
+          const category = categories[index] ?? ''
+          const target = {
+            key: `${category}:${item.name}`,
+            text: `${category} · ${item.name} ${String(value)}`,
+            x: x(index),
+            y: y(value),
+          }
+          return <circle
+            key={category} className={css.chartPoint} data-series={String(seriesIndex)} data-testid="line-chart-point"
+            cx={target.x} cy={target.y} r={3} tabIndex={0} aria-label={target.text}
+            aria-describedby={tooltip?.key === target.key ? tooltipId : undefined}
+            onMouseEnter={() => { setTooltip(target) }} onMouseLeave={() => { setTooltip(null) }}
+            onFocus={() => { setTooltip(target) }} onBlur={() => { setTooltip(null) }}
+          />
+        })}
       </g>)}
       {categories.map((category, index) => <text
         key={category} className={css.chartCategory} x={x(index)} y={222} textAnchor="middle"

@@ -66,7 +66,7 @@ Basic Catalog 的 `Button` 始终会到达 Agent。业务目录的 `ActionButton
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `ActionButton`、`Chart`、`DataTable`、`Progress`、`TaskCard`、`StatusBadge` 与 `Statistic`。`DataTable` 把有界标量行渲染为支持横向滚动和文本截断的语义化表格。显式允许排序的列在升序、降序和原顺序间循环，可选的本地文本筛选会搜索可见单元格；两者都只使用 React 状态，不产生 Turn。行级动作会发送动作名、`rowId` 与标量行对象；可选的本地确认可在发送前取消，但 Client 永不直接修改行。选择仍留待后续。`Chart` 以宿主拥有的 SVG 坐标与配色绘制分组柱状图或折线路径，并提供隐藏的逐分类数值摘要；饼图、tooltip 与图表动作仍留待后续。`ActionButton` 的本地 set/toggle 操作不产生 Turn，Agent 变体则走普通动作通道。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
+- **两个目录**——懒加载渲染器绘制 Basic Catalog，以及一个业务目录（`https://dsh.dev/a2ui/catalogs/task/v1`），后者新增 `ActionButton`、`Chart`、`DataTable`、`Progress`、`TaskCard`、`StatusBadge` 与 `Statistic`。`DataTable` 把有界标量行渲染为支持横向滚动和文本截断的语义化表格。显式允许排序的列在升序、降序和原顺序间循环，可选的本地文本筛选会搜索可见单元格；两者都只使用 React 状态，不产生 Turn。行级动作会发送动作名、`rowId` 与标量行对象；可选的本地确认可在发送前取消，但 Client 永不直接修改行。选择仍留待后续。`Chart` 以宿主拥有的 SVG 坐标与配色绘制分组柱状图或折线路径，并提供隐藏的逐分类数值摘要。鼠标悬停和键盘聚焦会显示本地数值 Tooltip，不产生 Turn；触摸专用行为、边缘避让、饼图与图表动作仍留待后续。`ActionButton` 的本地 set/toggle 操作不产生 Turn，Agent 变体则走普通动作通道。业务样式固化在本包的 CSS Modules 与 `--dsw-*` token 中，Surface 无法自行选择颜色或间距。
 - **仅支持消息式 Action 回传**——完成 Turn 的按钮通过原生会话输入提交 `userMessage`，缺失时使用稳定的动作名；尚不单独持久化结构化 A2UI Action 事件。
 - **仅做轻量准入**——帧检查不能替代官方 SDK 校验。
 

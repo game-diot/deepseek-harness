@@ -72,7 +72,7 @@ A Surface that names the Basic Catalog still refuses them, so a third-party rend
 
 `DataTable` row actions send their action name with the selected `rowId` and scalar row object. A row action with `confirm` opens a local confirmation first; cancellation sends nothing, and confirmation only dispatches the event—the Client never mutates or deletes a row. If the same action name is also configured in `approvalActions`, the renderer's outer approval step still applies.
 
-`Chart` admits grouped bar charts and line charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, series colours, theme adaptation, and the screen-reader summary. Pie, tooltip, and chart actions remain deferred.
+`Chart` admits grouped bar charts and line charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, series colours, theme adaptation, the screen-reader summary, and pointer/keyboard value tooltips. Tooltip state remains local and sends no Agent action. Pie charts, touch-specific tooltip behavior, edge avoidance, and chart actions remain deferred.
 
 <a id="model-experience"></a>
 ## Model Experience

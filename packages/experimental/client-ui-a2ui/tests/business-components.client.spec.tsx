@@ -162,6 +162,43 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(chart.getByText('周三：完成 4；新增 6')).toBeTruthy()
   })
 
+  it('shows chart values locally on pointer hover and keyboard focus', () => {
+    const bars = render(<BarChartView
+      title="任务完成量"
+      categories={['周一', '周二']}
+      series={[{ name: '完成', values: [3, 5] }]}
+      emptyText="暂无数据"
+    />)
+    const firstBar = bars.getAllByTestId('bar-chart-bar')[0]!
+    expect(bars.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(firstBar)
+    expect(bars.getByRole('tooltip').textContent).toBe('周一 · 完成 3')
+    fireEvent.mouseLeave(firstBar)
+    expect(bars.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(firstBar)
+    expect(bars.getByRole('tooltip').textContent).toBe('周一 · 完成 3')
+    expect(firstBar.getAttribute('aria-describedby')).toBe(bars.getByRole('tooltip').id)
+    fireEvent.blur(firstBar)
+    expect(bars.queryByRole('tooltip')).toBeNull()
+    bars.unmount()
+
+    const lines = render(<LineChartView
+      title="任务趋势"
+      categories={['周一', '周二']}
+      series={[{ name: '新增', values: [4, 2] }]}
+      emptyText="暂无数据"
+    />)
+    const secondPoint = lines.getAllByTestId('line-chart-point')[1]!
+    fireEvent.mouseEnter(secondPoint)
+    expect(lines.getByRole('tooltip').textContent).toBe('周二 · 新增 2')
+    fireEvent.mouseLeave(secondPoint)
+    expect(lines.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(secondPoint)
+    expect(lines.getByRole('tooltip').textContent).toBe('周二 · 新增 2')
+    fireEvent.blur(secondPoint)
+    expect(lines.queryByRole('tooltip')).toBeNull()
+  })
+
   it('dispatches row actions and confirms destructive actions before dispatch', () => {
     const dispatchAction = vi.fn(() => Promise.resolve())
     const table = render(<DataTableView
