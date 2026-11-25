@@ -61,13 +61,15 @@ kind: "package-reference"
 | 组件 | 字段 |
 |---|---|
 | `ActionButton` | `label`、`variant`（`default`/`primary`/`danger`/`borderless`）、`action`（`local:set`、`local:toggle` 或 `agent`） |
-| `DataTable` | `label`、1–12 列及可选本地排序、最多 100 行标量数据、`emptyText`、可选本地筛选文案；拒绝重复列键与行 id |
+| `DataTable` | `label`、1–12 列及可选本地排序、最多 100 行标量数据、`emptyText`、可选本地筛选文案，以及最多四个 Agent 行级动作；拒绝重复列键、行 id 与动作名 |
 | `Progress` | `label`、可选 `value`/`max`、`tone`；缺少 `value` 时渲染不确定进度 |
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
 | `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |
 | `TaskCard` | `title`、`owner`、`priority`（`high`/`medium`/`low`）、`status`（`todo`/`doing`/`done`）、`child` |
 
 指名 Basic Catalog 的 Surface 依然会拒绝这些组件，因此没有该目录的第三方渲染器仍能绘制收到的每一张 Surface。`TaskCard.child` 指向一个放在卡片操作区的组件，因此一排 `Button` 可以位于卡片内部。`ActionButton` 通过所属 Surface 的数据模型执行 `local:set` 与 `local:toggle`，不会联系 Agent；其 `agent` 变体会派发一次普通 A2UI 事件。
+
+`DataTable` 行级动作会发送动作名、所选 `rowId` 与标量行对象。带 `confirm` 的动作先显示本地确认；取消不发送任何内容，确认也只负责派发事件，Client 不会直接修改或删除行。如果同一动作名还配置在 `approvalActions` 中，渲染器外层的审批步骤仍然生效。
 
 <a id="model-experience"></a>
 ## 模型体验

@@ -278,6 +278,17 @@ const component = z.discriminatedUnion('component', [
       placeholder: z.string().min(1).max(100),
       clearLabel: z.string().min(1).max(100),
     }).optional(),
+    actionsLabel: z.string().min(1).max(100).optional(),
+    rowActions: z.array(z.strictObject({
+      label: z.string().min(1).max(100),
+      name: z.string().min(1).max(128),
+      variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+      confirm: z.strictObject({
+        prompt: z.string().min(1).max(200),
+        confirmLabel: z.string().min(1).max(100),
+        cancelLabel: z.string().min(1).max(100),
+      }).optional(),
+    })).min(1).max(4).optional(),
   }).superRefine((value, ctx) => {
     const columnKeys = new Set<string>()
     for (const [index, column] of value.columns.entries()) {
@@ -292,6 +303,16 @@ const component = z.discriminatedUnion('component', [
         ctx.addIssue({ code: 'custom', message: `duplicate row id "${row.id}"`, path: ['rows', index, 'id'] })
       }
       rowIds.add(row.id)
+    }
+    if ((value.actionsLabel === undefined) !== (value.rowActions === undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'actionsLabel and rowActions must be provided together', path: ['rowActions'] })
+    }
+    const actionNames = new Set<string>()
+    for (const [index, action] of (value.rowActions ?? []).entries()) {
+      if (actionNames.has(action.name)) {
+        ctx.addIssue({ code: 'custom', message: `duplicate row action name "${action.name}"`, path: ['rowActions', index, 'name'] })
+      }
+      actionNames.add(action.name)
     }
   }),
   z.strictObject({

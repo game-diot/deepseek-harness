@@ -172,7 +172,15 @@ type DataTableProps = {
   }[]
   readonly emptyText: string
   readonly filter?: { readonly placeholder: string; readonly clearLabel: string }
+  readonly actionsLabel?: string
+  readonly rowActions?: readonly {
+    readonly label: string
+    readonly name: string
+    readonly variant?: 'default' | 'primary' | 'danger' | 'borderless'
+    readonly confirm?: { readonly prompt: string; readonly confirmLabel: string; readonly cancelLabel: string }
+  }[]
 }
+type DataTableContext = { dispatchAction(action: Record<string, unknown>): Promise<void> }
 
 function cellText(value: TableCell | undefined): string {
   return value === undefined || value === null ? '' : String(value)
@@ -183,9 +191,12 @@ function cellText(value: TableCell | undefined): string {
  * @param props - accessible label, columns, rows, and caller-owned empty text.
  * @returns one read-only table.
  */
-export function DataTableView({ label, columns, rows, emptyText, filter }: DataTableProps) {
+export function DataTableView({
+  label, columns, rows, emptyText, filter, actionsLabel, rowActions = [], context,
+}: DataTableProps & { readonly context?: DataTableContext }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null)
+  const [pending, setPending] = useState<{ rowId: string; actionName: string } | null>(null)
   const visibleRows = useMemo(() => {
     const term = query.trim().toLocaleLowerCase()
     const filtered = term === '' ? [...rows] : rows.filter(row => (
@@ -206,6 +217,10 @@ export function DataTableView({ label, columns, rows, emptyText, filter }: DataT
         ? { key, direction: 'descending' }
         : null)
   }
+  const dispatchRowAction = (name: string, row: DataTableProps['rows'][number]): void => {
+    void context?.dispatchAction({ event: { name, context: { rowId: row.id, row: row.cells } } })
+  }
+  const columnCount = columns.length + (rowActions.length === 0 ? 0 : 1)
   return <div className={css.tableShell}>
     {filter === undefined ? null : <div className={css.tableFilter}>
       <input
@@ -226,14 +241,34 @@ export function DataTableView({ label, columns, rows, emptyText, filter }: DataT
                 {column.label}<span aria-hidden="true">{sort?.key !== column.key ? '↕' : sort.direction === 'ascending' ? '↑' : '↓'}</span>
               </button>
               : column.label}
-          </th>)}</tr>
+          </th>)}{rowActions.length === 0 ? null : <th scope="col">{actionsLabel}</th>}</tr>
         </thead>
         <tbody>{visibleRows.length === 0
-          ? <tr><td className={css.tableEmpty} colSpan={columns.length}>{emptyText}</td></tr>
+          ? <tr><td className={css.tableEmpty} colSpan={columnCount}>{emptyText}</td></tr>
           : visibleRows.map(row => <tr key={row.id}>{columns.map((column) => {
             const text = cellText(row.cells[column.key])
             return <td key={column.key} data-align={column.align ?? 'start'} title={text || undefined}>{text}</td>
-          })}</tr>)}</tbody>
+          })}{rowActions.length === 0 ? null : <td className={css.tableActions}>
+            {rowActions.map(action => <button
+              key={action.name} type="button"
+              className={`${css.actionButton} ${ACTION_CLASS[action.variant ?? 'default'] ?? ''}`}
+              onClick={() => {
+                if (action.confirm === undefined) dispatchRowAction(action.name, row)
+                else setPending({ rowId: row.id, actionName: action.name })
+              }}
+            >{action.label}</button>)}
+            {rowActions.map((action) => {
+              if (action.confirm === undefined || pending?.rowId !== row.id || pending.actionName !== action.name) return null
+              return <div key={`${action.name}:confirm`} className={css.tableConfirm} role="group" aria-label={action.confirm.prompt}>
+                <span>{action.confirm.prompt}</span>
+                <button type="button" onClick={() => { setPending(null) }}>{action.confirm.cancelLabel}</button>
+                <button type="button" onClick={() => {
+                  setPending(null)
+                  dispatchRowAction(action.name, row)
+                }}>{action.confirm.confirmLabel}</button>
+              </div>
+            })}
+          </td>}</tr>)}</tbody>
       </table>
     </div>
   </div>
@@ -258,6 +293,17 @@ const dataTableProps = z.strictObject({
   filter: z.strictObject({
     placeholder: z.string().min(1).max(100), clearLabel: z.string().min(1).max(100),
   }).optional(),
+  actionsLabel: z.string().min(1).max(100).optional(),
+  rowActions: z.array(z.strictObject({
+    label: z.string().min(1).max(100),
+    name: z.string().min(1).max(128),
+    variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+    confirm: z.strictObject({
+      prompt: z.string().min(1).max(200),
+      confirmLabel: z.string().min(1).max(100),
+      cancelLabel: z.string().min(1).max(100),
+    }).optional(),
+  })).min(1).max(4).optional(),
 }).superRefine((value, ctx) => {
   const columns = new Set<string>()
   for (const [index, column] of value.columns.entries()) {
@@ -269,12 +315,20 @@ const dataTableProps = z.strictObject({
     if (rows.has(row.id)) ctx.addIssue({ code: 'custom', message: 'duplicate row id', path: ['rows', index, 'id'] })
     rows.add(row.id)
   }
+  if ((value.actionsLabel === undefined) !== (value.rowActions === undefined)) {
+    ctx.addIssue({ code: 'custom', message: 'actionsLabel and rowActions must be provided together', path: ['rowActions'] })
+  }
+  const actionNames = new Set<string>()
+  for (const [index, action] of (value.rowActions ?? []).entries()) {
+    if (actionNames.has(action.name)) ctx.addIssue({ code: 'custom', message: 'duplicate row action name', path: ['rowActions', index, 'name'] })
+    actionNames.add(action.name)
+  }
 })
 
 const dataTable = createComponentImplementation({
   name: 'DataTable',
   schema: dataTableProps,
-}, ({ props }) => <DataTableView {...props as DataTableProps} />)
+}, ({ props, context }) => <DataTableView {...props as DataTableProps} context={context} />)
 
 const badge = createComponentImplementation({
   name: 'StatusBadge',

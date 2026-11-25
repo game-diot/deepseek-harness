@@ -107,6 +107,14 @@ describe('a2ui_render', () => {
             columns: [{ key: 'name', label: '任务', sortable: true }, { key: 'done', label: '完成', align: 'center' }],
             rows: [{ id: 'T-1', cells: { name: '复盘', done: true } }], emptyText: '暂无任务',
             filter: { placeholder: '筛选任务', clearLabel: '清空筛选' },
+            actionsLabel: '操作',
+            rowActions: [
+              { label: '完成', name: 'completeTask', variant: 'primary' },
+              {
+                label: '删除', name: 'deleteTask', variant: 'danger',
+                confirm: { prompt: '确认删除？', confirmLabel: '确认删除', cancelLabel: '取消' },
+              },
+            ],
           },
         ],
       },
@@ -149,6 +157,36 @@ describe('a2ui_render', () => {
     }])
     expect(result.isError).toBe(true)
     expect(resultText(result)).toContain('duplicate')
+  })
+
+  it.each([
+    {
+      name: 'actions without a heading',
+      extra: { rowActions: [{ label: '完成', name: 'completeTask' }] },
+      error: 'actionsLabel and rowActions must be provided together',
+    },
+    {
+      name: 'duplicate action names',
+      extra: {
+        actionsLabel: '操作',
+        rowActions: [{ label: '完成', name: 'completeTask' }, { label: '再次完成', name: 'completeTask' }],
+      },
+      error: 'duplicate row action name',
+    },
+  ])('rejects DataTable $name', async ({ extra, error }) => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'table-actions', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'DataTable', label: '任务列表',
+          columns: [{ key: 'name', label: '任务' }], rows: [], emptyText: '暂无任务', ...extra,
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain(error)
   })
 
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {

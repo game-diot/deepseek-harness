@@ -127,6 +127,43 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(table.getAllByRole('row')[1]?.textContent).toBe('发布说明周明')
   })
 
+  it('dispatches row actions and confirms destructive actions before dispatch', () => {
+    const dispatchAction = vi.fn(() => Promise.resolve())
+    const table = render(<DataTableView
+      label="任务列表"
+      columns={[{ key: 'name', label: '任务名称' }]}
+      rows={[{ id: 'T-1', cells: { name: '季度复盘' } }]}
+      emptyText="暂无任务"
+      rowActions={[
+        { label: '完成', name: 'completeTask', variant: 'primary' },
+        {
+          label: '删除', name: 'deleteTask', variant: 'danger',
+          confirm: { prompt: '确认删除季度复盘？', confirmLabel: '确认删除', cancelLabel: '取消' },
+        },
+      ]}
+      context={{ dispatchAction }}
+    />)
+    fireEvent.click(table.getByRole('button', { name: '完成' }))
+    expect(dispatchAction).toHaveBeenCalledWith({
+      event: { name: 'completeTask', context: { rowId: 'T-1', row: { name: '季度复盘' } } },
+    })
+    dispatchAction.mockClear()
+
+    fireEvent.click(table.getByRole('button', { name: '删除' }))
+    expect(table.getByRole('group', { name: '确认删除季度复盘？' })).toBeTruthy()
+    expect(dispatchAction).not.toHaveBeenCalled()
+    fireEvent.click(table.getByRole('button', { name: '取消' }))
+    expect(table.queryByRole('group', { name: '确认删除季度复盘？' })).toBeNull()
+    expect(dispatchAction).not.toHaveBeenCalled()
+
+    fireEvent.click(table.getByRole('button', { name: '删除' }))
+    fireEvent.click(table.getByRole('button', { name: '确认删除' }))
+    expect(dispatchAction).toHaveBeenCalledWith({
+      event: { name: 'deleteTask', context: { rowId: 'T-1', row: { name: '季度复盘' } } },
+    })
+    expect(table.getByText('季度复盘')).toBeTruthy()
+  })
+
   it('updates the data model locally or dispatches one Agent event', () => {
     const set = vi.fn()
     const dispatchAction = vi.fn(() => Promise.resolve())
@@ -164,6 +201,18 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
       processor.processMessages([board(TASK_CATALOG_ID, [{
         id: 'root', component: 'DataTable', label: '任务列表', emptyText: '暂无任务',
         columns: [{ key: 'name', label: '任务' }, { key: 'name', label: '重复' }], rows: [],
+      }])] as ProcessableMessagePayload)
+    }).toThrow()
+    processor.dispose()
+  })
+
+  it('refuses an incomplete DataTable action contract in the Client catalog', () => {
+    const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
+    expect(() => {
+      processor.processMessages([board(TASK_CATALOG_ID, [{
+        id: 'root', component: 'DataTable', label: '任务列表', emptyText: '暂无任务',
+        columns: [{ key: 'name', label: '任务' }], rows: [],
+        rowActions: [{ label: '完成', name: 'completeTask' }],
       }])] as ProcessableMessagePayload)
     }).toThrow()
     processor.dispose()
