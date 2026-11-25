@@ -270,6 +270,10 @@ const component = z.discriminatedUnion('component', [
       values: z.array(z.number().min(0)).max(12),
     })).max(4),
     emptyText: z.string().min(1).max(200),
+    interaction: z.strictObject({
+      label: z.string().min(1).max(100),
+      action: z.strictObject({ name: z.string().min(1).max(128) }),
+    }).optional(),
   }).superRefine((value, ctx) => {
     if ((value.categories.length === 0) !== (value.series.length === 0)) {
       ctx.addIssue({ code: 'custom', message: 'empty Chart categories and series must be empty together', path: ['series'] })

@@ -321,6 +321,59 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(lines.queryByRole('tooltip')).toBeNull()
   })
 
+  it('dispatches chart target actions by click, Enter, and Space', () => {
+    const dispatchAction = vi.fn(() => Promise.resolve())
+    const context = { dispatchAction }
+    const interaction = { label: '查看任务明细', action: { name: 'showTaskDetails' } }
+
+    const bars = render(<BarChartView
+      title="任务完成量" categories={['周一', '周二']}
+      series={[{ name: '完成', values: [3, 5] }]} emptyText="暂无数据"
+      interaction={interaction} context={context}
+    />)
+    fireEvent.click(bars.getAllByTestId('bar-chart-bar')[1]!)
+    expect(dispatchAction).toHaveBeenLastCalledWith({ event: {
+      name: 'showTaskDetails',
+      context: { chartType: 'bar', category: '周二', categoryIndex: 1, series: '完成', seriesIndex: 0, value: 5 },
+    } })
+    bars.unmount()
+
+    const lines = render(<LineChartView
+      title="任务趋势" categories={['周一', '周二']}
+      series={[{ name: '新增', values: [4, 2] }]} emptyText="暂无数据"
+      interaction={interaction} context={context}
+    />)
+    fireEvent.keyDown(lines.getAllByTestId('line-chart-point')[1]!, { key: 'Enter' })
+    expect(dispatchAction).toHaveBeenLastCalledWith({ event: {
+      name: 'showTaskDetails',
+      context: { chartType: 'line', category: '周二', categoryIndex: 1, series: '新增', seriesIndex: 0, value: 2 },
+    } })
+    lines.unmount()
+
+    const pie = render(<PieChartView
+      title="任务状态分布" categories={['待处理', '已完成']}
+      series={[{ name: '任务数', values: [3, 12] }]} emptyText="暂无任务"
+      interaction={interaction} context={context}
+    />)
+    fireEvent.keyDown(pie.getAllByTestId('pie-chart-segment')[1]!, { key: ' ' })
+    expect(dispatchAction).toHaveBeenLastCalledWith({ event: {
+      name: 'showTaskDetails',
+      context: {
+        chartType: 'pie', category: '已完成', categoryIndex: 1,
+        series: '任务数', seriesIndex: 0, value: 12, percentage: 80,
+      },
+    } })
+  })
+
+  it('keeps charts display-only without an interaction contract', () => {
+    const chart = render(<BarChartView
+      title="任务完成量" categories={['周一']} series={[{ name: '完成', values: [3] }]} emptyText="暂无数据"
+    />)
+    const bar = chart.getByTestId('bar-chart-bar')
+    expect(bar.getAttribute('role')).toBeNull()
+    fireEvent.click(bar)
+  })
+
   it('renders one accessible donut segment per category with local percentages', () => {
     const chart = render(<PieChartView
       title="任务状态分布"

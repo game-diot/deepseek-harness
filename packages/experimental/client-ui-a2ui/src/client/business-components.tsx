@@ -6,7 +6,7 @@
  * fonts, or spacing, and a redesign changes these files rather than a prompt.
  */
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import z from 'zod'
 import { createComponentImplementation } from '@a2ui/react'
 import { componentId } from '@a2ui/web_core/v1_0'
@@ -157,11 +157,45 @@ const progress = createComponentImplementation({
   }),
 }, ({ props }) => <ProgressView {...props as ProgressProps} />)
 
+type ChartInteraction = { readonly label: string; readonly action: { readonly name: string } }
+type ChartContext = { dispatchAction(action: Record<string, unknown>): Promise<void> }
+type ChartTargetContext = {
+  readonly chartType: 'bar' | 'line' | 'pie'
+  readonly category: string
+  readonly categoryIndex: number
+  readonly series: string
+  readonly seriesIndex: number
+  readonly value: number
+  readonly percentage?: number
+}
+
 type BarChartProps = {
   readonly title: string
   readonly categories: readonly string[]
   readonly series: readonly { readonly name: string; readonly values: readonly number[] }[]
   readonly emptyText: string
+  readonly interaction?: ChartInteraction
+  readonly context?: ChartContext
+}
+
+function activateChartTarget(
+  interaction: ChartInteraction | undefined,
+  context: ChartContext | undefined,
+  target: ChartTargetContext,
+): void {
+  if (interaction === undefined) return
+  void context?.dispatchAction({ event: { name: interaction.action.name, context: target } })
+}
+
+function handleChartKey(
+  event: KeyboardEvent<SVGElement>,
+  interaction: ChartInteraction | undefined,
+  context: ChartContext | undefined,
+  target: ChartTargetContext,
+): void {
+  if (interaction === undefined || (event.key !== 'Enter' && event.key !== ' ')) return
+  event.preventDefault()
+  activateChartTarget(interaction, context, target)
 }
 
 type ChartProps = BarChartProps & { readonly type: 'bar' | 'line' | 'pie' }
@@ -205,7 +239,7 @@ function ChartFrame({
  * @param props - title, category labels, numeric series, and caller-owned empty text.
  * @returns a themed SVG plus a screen-reader value summary.
  */
-export function BarChartView({ title, categories, series, emptyText }: BarChartProps) {
+export function BarChartView({ title, categories, series, emptyText, interaction, context }: BarChartProps) {
   const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
   const tooltipId = useId()
   if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
@@ -234,13 +268,19 @@ export function BarChartView({ title, categories, series, emptyText }: BarChartP
               x: x + Math.max(1, barWidth - 2) / 2,
               y,
             }
+            const actionTarget = {
+              chartType: 'bar' as const, category, categoryIndex, series: item.name, seriesIndex, value,
+            }
             return <rect
               key={item.name} className={css.chartBar} data-series={String(seriesIndex)} data-testid="bar-chart-bar"
               x={x} y={y} width={Math.max(1, barWidth - 2)} height={height} rx={2}
               tabIndex={0} aria-label={target.text}
+              role={interaction === undefined ? undefined : 'button'} data-interactive={interaction === undefined ? undefined : 'true'}
               aria-describedby={tooltip?.key === target.key ? tooltipId : undefined}
               onMouseEnter={() => { setTooltip(target) }} onMouseLeave={() => { setTooltip(null) }}
               onFocus={() => { setTooltip(target) }} onBlur={() => { setTooltip(null) }}
+              onClick={() => { activateChartTarget(interaction, context, actionTarget) }}
+              onKeyDown={(event) => { handleChartKey(event, interaction, context, actionTarget) }}
             />
           })}
           <text className={css.chartCategory} x={plot.left + categoryIndex * groupWidth + groupWidth / 2} y={222} textAnchor="middle">
@@ -257,7 +297,7 @@ export function BarChartView({ title, categories, series, emptyText }: BarChartP
  * @param props - title, category labels, numeric series, and caller-owned empty text.
  * @returns a themed SVG plus the shared screen-reader value summary.
  */
-export function LineChartView({ title, categories, series, emptyText }: BarChartProps) {
+export function LineChartView({ title, categories, series, emptyText, interaction, context }: BarChartProps) {
   const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
   const tooltipId = useId()
   if (categories.length === 0 || series.length === 0) return <div className={css.chartEmpty}>{emptyText}</div>
@@ -286,12 +326,18 @@ export function LineChartView({ title, categories, series, emptyText }: BarChart
             x: x(index),
             y: y(value),
           }
+          const actionTarget = {
+            chartType: 'line' as const, category, categoryIndex: index, series: item.name, seriesIndex, value,
+          }
           return <circle
             key={category} className={css.chartPoint} data-series={String(seriesIndex)} data-testid="line-chart-point"
             cx={target.x} cy={target.y} r={3} tabIndex={0} aria-label={target.text}
+            role={interaction === undefined ? undefined : 'button'} data-interactive={interaction === undefined ? undefined : 'true'}
             aria-describedby={tooltip?.key === target.key ? tooltipId : undefined}
             onMouseEnter={() => { setTooltip(target) }} onMouseLeave={() => { setTooltip(null) }}
             onFocus={() => { setTooltip(target) }} onBlur={() => { setTooltip(null) }}
+            onClick={() => { activateChartTarget(interaction, context, actionTarget) }}
+            onKeyDown={(event) => { handleChartKey(event, interaction, context, actionTarget) }}
           />
         })}
       </g>)}
@@ -307,7 +353,7 @@ export function LineChartView({ title, categories, series, emptyText }: BarChart
  * @param props - title, category labels, one numeric series, and caller-owned empty text.
  * @returns a themed SVG with focusable segments and local value tooltips.
  */
-export function PieChartView({ title, categories, series, emptyText }: BarChartProps) {
+export function PieChartView({ title, categories, series, emptyText, interaction, context }: BarChartProps) {
   const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
   const tooltipId = useId()
   const [pieSeries] = series
@@ -334,6 +380,10 @@ export function PieChartView({ title, categories, series, emptyText }: BarChartP
           x: 300 + Math.cos(midpoint) * tooltipRadius,
           y: 118 + Math.sin(midpoint) * tooltipRadius,
         }
+        const actionTarget = {
+          chartType: 'pie' as const, category, categoryIndex: index,
+          series: pieSeries.name, seriesIndex: 0, value, percentage: Math.round(fraction * 100),
+        }
         const offset = -consumed * circumference
         consumed += fraction
         return <circle
@@ -342,8 +392,11 @@ export function PieChartView({ title, categories, series, emptyText }: BarChartP
           strokeDasharray={`${String(length)} ${String(circumference - length)}`}
           strokeDashoffset={offset} transform="rotate(-90 300 118)"
           tabIndex={0} aria-label={target.text} aria-describedby={tooltip?.key === target.key ? tooltipId : undefined}
+          role={interaction === undefined ? undefined : 'button'} data-interactive={interaction === undefined ? undefined : 'true'}
           onMouseEnter={() => { setTooltip(target) }} onMouseLeave={() => { setTooltip(null) }}
           onFocus={() => { setTooltip(target) }} onBlur={() => { setTooltip(null) }}
+          onClick={() => { activateChartTarget(interaction, context, actionTarget) }}
+          onKeyDown={(event) => { handleChartKey(event, interaction, context, actionTarget) }}
         />
       })}
       <text className={css.pieTotal} x={300} y={124} textAnchor="middle">{total}</text>
@@ -360,6 +413,10 @@ const barChartProps = z.strictObject({
     name: chartString, values: z.array(z.number().min(0)).max(12),
   })).max(4),
   emptyText: chartString,
+  interaction: z.strictObject({
+    label: z.string().min(1).max(100),
+    action: z.strictObject({ name: z.string().min(1).max(128) }),
+  }).optional(),
 }).superRefine((value, ctx) => {
   if ((value.categories.length === 0) !== (value.series.length === 0)) {
     ctx.addIssue({ code: 'custom', message: 'empty categories and series must be empty together', path: ['series'] })
@@ -388,11 +445,11 @@ const barChartProps = z.strictObject({
   }
 })
 
-const chart = createComponentImplementation({ name: 'Chart', schema: barChartProps }, ({ props }) => {
+const chart = createComponentImplementation({ name: 'Chart', schema: barChartProps }, ({ props, context }) => {
   const value = props as ChartProps
-  if (value.type === 'bar') return <BarChartView {...value} />
-  if (value.type === 'line') return <LineChartView {...value} />
-  return <PieChartView {...value} />
+  if (value.type === 'bar') return <BarChartView {...value} context={context} />
+  if (value.type === 'line') return <LineChartView {...value} context={context} />
+  return <PieChartView {...value} context={context} />
 })
 
 type TableCell = string | number | boolean | null

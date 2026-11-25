@@ -125,6 +125,7 @@ describe('a2ui_render', () => {
             categories: ['周一', '周二'],
             series: [{ name: '完成', values: [3, 5] }, { name: '新增', values: [4, 2] }],
             emptyText: '暂无数据',
+            interaction: { label: '查看任务明细', action: { name: 'showTaskDetails' } },
           },
           {
             id: 'trend', component: 'Chart', type: 'line', title: '任务趋势',

@@ -230,6 +230,18 @@
   fill: var(--dsw-alias-brand-primary);
 }
 
+.chartBar[data-interactive='true'],
+.chartPoint[data-interactive='true'],
+.pieSegment[data-interactive='true'] {
+  cursor: pointer;
+}
+
+.chartBar[data-interactive='true']:hover,
+.chartPoint[data-interactive='true']:hover,
+.pieSegment[data-interactive='true']:hover {
+  filter: brightness(1.12);
+}
+
 .chartBar:focus-visible,
 .chartPoint:focus-visible,
 .pieSegment:focus-visible {
