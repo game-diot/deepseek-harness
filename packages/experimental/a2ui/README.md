@@ -61,7 +61,7 @@ Besides the Basic Catalog, the validator admits one business catalog, `https://d
 | Component | Fields |
 |---|---|
 | `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
-| `DataTable` | `label`, 1–12 columns, up to 100 scalar rows, `emptyText`; duplicate column keys and row ids are rejected |
+| `DataTable` | `label`, 1–12 columns with optional local sorting, up to 100 scalar rows, `emptyText`, optional local filter labels; duplicate column keys and row ids are rejected |
 | `Progress` | `label`, optional `value`/`max`, `tone`; missing `value` renders indeterminate progress |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |

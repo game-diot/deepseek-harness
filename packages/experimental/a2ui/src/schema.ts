@@ -267,12 +267,17 @@ const component = z.discriminatedUnion('component', [
       key: componentId,
       label: z.string().min(1).max(100),
       align: z.enum(['start', 'center', 'end']).optional(),
+      sortable: z.boolean().optional(),
     })).min(1).max(12),
     rows: z.array(z.strictObject({
       id: componentId,
       cells: z.record(componentId, z.union([z.string(), z.number(), z.boolean(), z.null()])),
     })).max(100),
     emptyText: z.string().min(1).max(200),
+    filter: z.strictObject({
+      placeholder: z.string().min(1).max(100),
+      clearLabel: z.string().min(1).max(100),
+    }).optional(),
   }).superRefine((value, ctx) => {
     const columnKeys = new Set<string>()
     for (const [index, column] of value.columns.entries()) {

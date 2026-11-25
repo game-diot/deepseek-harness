@@ -94,6 +94,39 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(cell.getAttribute('colspan')).toBe('2')
   })
 
+  it('filters and cycles sortable columns without an Agent channel', () => {
+    const table = render(<DataTableView
+      label="任务列表"
+      columns={[
+        { key: 'name', label: '任务名称', sortable: true },
+        { key: 'owner', label: '负责人' },
+      ]}
+      rows={[
+        { id: 'T-2', cells: { name: '发布说明', owner: '周明' } },
+        { id: 'T-1', cells: { name: '季度复盘', owner: '林嘉怡' } },
+      ]}
+      emptyText="暂无任务"
+      filter={{ placeholder: '筛选任务', clearLabel: '清空筛选' }}
+    />)
+    const input = table.getByRole('searchbox', { name: '筛选任务' })
+    fireEvent.change(input, { target: { value: '林' } })
+    expect(table.getAllByRole('row')).toHaveLength(2)
+    expect(table.queryByText('发布说明')).toBeNull()
+    fireEvent.click(table.getByRole('button', { name: '清空筛选' }))
+    expect(table.getAllByRole('row')).toHaveLength(3)
+
+    const sort = table.getByRole('button', { name: '任务名称' })
+    fireEvent.click(sort)
+    expect(sort.closest('th')?.getAttribute('aria-sort')).toBe('ascending')
+    expect(table.getAllByRole('row')[1]?.textContent).toBe('发布说明周明')
+    fireEvent.click(sort)
+    expect(sort.closest('th')?.getAttribute('aria-sort')).toBe('descending')
+    expect(table.getAllByRole('row')[1]?.textContent).toBe('季度复盘林嘉怡')
+    fireEvent.click(sort)
+    expect(sort.closest('th')?.getAttribute('aria-sort')).toBe('none')
+    expect(table.getAllByRole('row')[1]?.textContent).toBe('发布说明周明')
+  })
+
   it('updates the data model locally or dispatches one Agent event', () => {
     const set = vi.fn()
     const dispatchAction = vi.fn(() => Promise.resolve())

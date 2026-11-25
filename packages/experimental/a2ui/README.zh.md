@@ -61,7 +61,7 @@ kind: "package-reference"
 | 组件 | 字段 |
 |---|---|
 | `ActionButton` | `label`、`variant`（`default`/`primary`/`danger`/`borderless`）、`action`（`local:set`、`local:toggle` 或 `agent`） |
-| `DataTable` | `label`、1–12 列、最多 100 行标量数据、`emptyText`；拒绝重复列键与行 id |
+| `DataTable` | `label`、1–12 列及可选本地排序、最多 100 行标量数据、`emptyText`、可选本地筛选文案；拒绝重复列键与行 id |
 | `Progress` | `label`、可选 `value`/`max`、`tone`；缺少 `value` 时渲染不确定进度 |
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
 | `Statistic` | `label`、`value`、`trend`（`direction`、`text`）、`tone` |

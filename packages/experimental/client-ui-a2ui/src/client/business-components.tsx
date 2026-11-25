@@ -6,7 +6,7 @@
  * fonts, or spacing, and a redesign changes these files rather than a prompt.
  */
 
-import type { ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import z from 'zod'
 import { createComponentImplementation } from '@a2ui/react'
 import { componentId } from '@a2ui/web_core/v1_0'
@@ -164,12 +164,14 @@ type DataTableProps = {
     readonly key: string
     readonly label: string
     readonly align?: 'start' | 'center' | 'end'
+    readonly sortable?: boolean
   }[]
   readonly rows: readonly {
     readonly id: string
     readonly cells: Readonly<Record<string, TableCell>>
   }[]
   readonly emptyText: string
+  readonly filter?: { readonly placeholder: string; readonly clearLabel: string }
 }
 
 function cellText(value: TableCell | undefined): string {
@@ -181,21 +183,59 @@ function cellText(value: TableCell | undefined): string {
  * @param props - accessible label, columns, rows, and caller-owned empty text.
  * @returns one read-only table.
  */
-export function DataTableView({ label, columns, rows, emptyText }: DataTableProps) {
-  return <div className={css.tableScroll}>
-    <table className={css.dataTable} aria-label={label}>
-      <thead>
-        <tr>{columns.map(column => <th key={column.key} scope="col" data-align={column.align ?? 'start'}>
-          {column.label}
-        </th>)}</tr>
-      </thead>
-      <tbody>{rows.length === 0
-        ? <tr><td className={css.tableEmpty} colSpan={columns.length}>{emptyText}</td></tr>
-        : rows.map(row => <tr key={row.id}>{columns.map((column) => {
-          const text = cellText(row.cells[column.key])
-          return <td key={column.key} data-align={column.align ?? 'start'} title={text || undefined}>{text}</td>
-        })}</tr>)}</tbody>
-    </table>
+export function DataTableView({ label, columns, rows, emptyText, filter }: DataTableProps) {
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null)
+  const visibleRows = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase()
+    const filtered = term === '' ? [...rows] : rows.filter(row => (
+      columns.some(column => cellText(row.cells[column.key]).toLocaleLowerCase().includes(term))
+    ))
+    if (sort === null) return filtered
+    return filtered.map((row, index) => ({ row, index })).sort((left, right) => {
+      const compared = cellText(left.row.cells[sort.key]).localeCompare(
+        cellText(right.row.cells[sort.key]), undefined, { numeric: true, sensitivity: 'base' },
+      )
+      return (compared === 0 ? left.index - right.index : compared) * (sort.direction === 'ascending' ? 1 : -1)
+    }).map(item => item.row)
+  }, [columns, query, rows, sort])
+  const cycleSort = (key: string): void => {
+    setSort(current => current?.key !== key
+      ? { key, direction: 'ascending' }
+      : current.direction === 'ascending'
+        ? { key, direction: 'descending' }
+        : null)
+  }
+  return <div className={css.tableShell}>
+    {filter === undefined ? null : <div className={css.tableFilter}>
+      <input
+        type="search" value={query} placeholder={filter.placeholder} aria-label={filter.placeholder}
+        onChange={(event) => { setQuery(event.currentTarget.value) }}
+      />
+      <button type="button" onClick={() => { setQuery('') }}>{filter.clearLabel}</button>
+    </div>}
+    <div className={css.tableScroll}>
+      <table className={css.dataTable} aria-label={label}>
+        <thead>
+          <tr>{columns.map(column => <th
+            key={column.key} scope="col" data-align={column.align ?? 'start'}
+            aria-sort={column.sortable === true && sort?.key === column.key ? sort.direction : 'none'}
+          >
+            {column.sortable === true
+              ? <button type="button" className={css.tableSort} onClick={() => { cycleSort(column.key) }}>
+                {column.label}<span aria-hidden="true">{sort?.key !== column.key ? '↕' : sort.direction === 'ascending' ? '↑' : '↓'}</span>
+              </button>
+              : column.label}
+          </th>)}</tr>
+        </thead>
+        <tbody>{visibleRows.length === 0
+          ? <tr><td className={css.tableEmpty} colSpan={columns.length}>{emptyText}</td></tr>
+          : visibleRows.map(row => <tr key={row.id}>{columns.map((column) => {
+            const text = cellText(row.cells[column.key])
+            return <td key={column.key} data-align={column.align ?? 'start'} title={text || undefined}>{text}</td>
+          })}</tr>)}</tbody>
+      </table>
+    </div>
   </div>
 }
 
@@ -204,6 +244,7 @@ const tableColumn = z.strictObject({
   key: tableId,
   label: z.string().min(1).max(100),
   align: z.enum(['start', 'center', 'end']).optional(),
+  sortable: z.boolean().optional(),
 })
 const tableRow = z.strictObject({
   id: tableId,
@@ -214,6 +255,9 @@ const dataTableProps = z.strictObject({
   columns: z.array(tableColumn).min(1).max(12),
   rows: z.array(tableRow).max(100),
   emptyText: z.string().min(1).max(200),
+  filter: z.strictObject({
+    placeholder: z.string().min(1).max(100), clearLabel: z.string().min(1).max(100),
+  }).optional(),
 }).superRefine((value, ctx) => {
   const columns = new Set<string>()
   for (const [index, column] of value.columns.entries()) {

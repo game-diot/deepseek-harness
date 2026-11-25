@@ -104,8 +104,9 @@ describe('a2ui_render', () => {
           { id: 'progress', component: 'Progress', label: '处理进度', value: 3, max: 4, tone: 'info' },
           {
             id: 'table', component: 'DataTable', label: '任务列表',
-            columns: [{ key: 'name', label: '任务' }, { key: 'done', label: '完成', align: 'center' }],
+            columns: [{ key: 'name', label: '任务', sortable: true }, { key: 'done', label: '完成', align: 'center' }],
             rows: [{ id: 'T-1', cells: { name: '复盘', done: true } }], emptyText: '暂无任务',
+            filter: { placeholder: '筛选任务', clearLabel: '清空筛选' },
           },
         ],
       },
