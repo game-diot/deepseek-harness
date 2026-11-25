@@ -150,6 +150,53 @@
   fill: var(--dsw-alias-label-secondary);
 }
 
+.pieSegment {
+  stroke: var(--dsw-alias-brand-primary);
+  stroke-width: 40;
+  cursor: default;
+}
+
+.pieSegment[data-series='1'] {
+  stroke: var(--dsw-alias-hovercard-state-done);
+}
+
+.pieSegment[data-series='2'] {
+  stroke: var(--dsw-alias-hovercard-state-error);
+}
+
+.pieSegment[data-series='3'] {
+  stroke: var(--dsw-alias-label-secondary);
+}
+
+.pieSegment[data-series='4'] {
+  stroke: var(--dsw-static-amber-400);
+}
+
+.pieSegment[data-series='5'] {
+  stroke: var(--dsw-static-blue-400);
+}
+
+.chartLegend i[data-series='4'] {
+  background: var(--dsw-static-amber-400);
+}
+
+.chartLegend i[data-series='5'] {
+  background: var(--dsw-static-blue-400);
+}
+
+.pieChart {
+  display: block;
+  width: 100%;
+  min-width: 320px;
+  height: auto;
+}
+
+.pieTotal {
+  fill: var(--dsw-alias-label-primary);
+  font-size: 22px;
+  font-weight: 600;
+}
+
 .barChart {
   display: block;
   width: 100%;
@@ -184,7 +231,8 @@
 }
 
 .chartBar:focus-visible,
-.chartPoint:focus-visible {
+.chartPoint:focus-visible,
+.pieSegment:focus-visible {
   outline: 2px solid var(--dsw-alias-border-selected);
   outline-offset: 2px;
 }

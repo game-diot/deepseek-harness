@@ -262,7 +262,7 @@ const component = z.discriminatedUnion('component', [
   z.strictObject({
     id: componentId,
     component: z.literal('Chart'),
-    type: z.enum(['bar', 'line']),
+    type: z.enum(['bar', 'line', 'pie']),
     title: z.string().min(1).max(200),
     categories: z.array(z.string().min(1).max(40)).max(12),
     series: z.array(z.strictObject({
@@ -286,6 +286,17 @@ const component = z.discriminatedUnion('component', [
       }
       if (seriesNames.has(item.name)) ctx.addIssue({ code: 'custom', message: `duplicate Chart series "${item.name}"`, path: ['series', index, 'name'] })
       seriesNames.add(item.name)
+    }
+    if (value.type === 'pie' && value.categories.length > 0) {
+      const [pieSeries] = value.series
+      if (value.categories.length < 2 || value.categories.length > 6) {
+        ctx.addIssue({ code: 'custom', message: 'pie Chart requires 2 to 6 categories', path: ['categories'] })
+      }
+      if (value.series.length !== 1) {
+        ctx.addIssue({ code: 'custom', message: 'pie Chart requires exactly one series', path: ['series'] })
+      } else if (pieSeries !== undefined && pieSeries.values.reduce((total, item) => total + item, 0) <= 0) {
+        ctx.addIssue({ code: 'custom', message: 'pie Chart requires a positive total', path: ['series', 0, 'values'] })
+      }
     }
   }),
   z.strictObject({

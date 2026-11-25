@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
 import { catalogs, TASK_CATALOG_ID, taskCatalog } from '../src/client/catalogs.ts'
-import { ActionButtonView, BarChartView, DataTableView, LineChartView, ProgressView } from '../src/client/business-components.tsx'
+import { ActionButtonView, BarChartView, DataTableView, LineChartView, PieChartView, ProgressView } from '../src/client/business-components.tsx'
 
 afterEach(cleanup)
 
@@ -197,6 +197,49 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(lines.getByRole('tooltip').textContent).toBe('周二 · 新增 2')
     fireEvent.blur(secondPoint)
     expect(lines.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('renders one accessible donut segment per category with local percentages', () => {
+    const chart = render(<PieChartView
+      title="任务状态分布"
+      categories={['待处理', '进行中', '已完成']}
+      series={[{ name: '任务数', values: [3, 5, 12] }]}
+      emptyText="暂无任务"
+    />)
+    expect(chart.getByRole('img', { name: '任务状态分布' })).toBeTruthy()
+    const segments = chart.getAllByTestId('pie-chart-segment')
+    expect(segments).toHaveLength(3)
+    expect(segments.map((segment) => {
+      const dasharray = segment.getAttribute('stroke-dasharray')
+      return Number(dasharray?.split(' ')[0])
+    })).toEqual([
+      expect.closeTo(65.97, 2), expect.closeTo(109.96, 2), expect.closeTo(263.89, 2),
+    ])
+    expect(chart.getByText('待处理：任务数 3')).toBeTruthy()
+    fireEvent.mouseEnter(segments[1]!)
+    expect(chart.getByRole('tooltip').textContent).toBe('进行中 · 任务数 5 · 25%')
+    fireEvent.mouseLeave(segments[1]!)
+    expect(chart.queryByRole('tooltip')).toBeNull()
+    fireEvent.focus(segments[2]!)
+    expect(chart.getByRole('tooltip').textContent).toBe('已完成 · 任务数 12 · 60%')
+    expect(segments[2]!.getAttribute('aria-describedby')).toBe(chart.getByRole('tooltip').id)
+  })
+
+  it.each([
+    {
+      name: 'multiple pie series',
+      series: [{ name: '任务数', values: [3, 5] }, { name: '占比', values: [4, 4] }],
+    },
+    { name: 'an all-zero pie series', series: [{ name: '任务数', values: [0, 0] }] },
+  ])('refuses $name in the Client catalog', ({ series }) => {
+    const processor = new MessageProcessor(catalogs as never, () => { /* no actions */ }, { validationConfig: STRICT_VALIDATION })
+    expect(() => {
+      processor.processMessages([board(TASK_CATALOG_ID, [{
+        id: 'root', component: 'Chart', type: 'pie', title: '任务状态分布',
+        categories: ['待处理', '已完成'], series, emptyText: '暂无任务',
+      }])] as ProcessableMessagePayload)
+    }).toThrow()
+    processor.dispose()
   })
 
   it('dispatches row actions and confirms destructive actions before dispatch', () => {

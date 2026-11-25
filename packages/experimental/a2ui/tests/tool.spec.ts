@@ -93,7 +93,7 @@ describe('a2ui_render', () => {
         surfaceId: 'board',
         catalogId: taskCatalog,
         components: [
-          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart', 'trend'] },
+          { id: 'root', component: 'Column', children: ['card', 'stat', 'progress', 'table', 'chart', 'trend', 'distribution'] },
           { id: 'card', component: 'TaskCard', title: 'Q4 复盘', owner: '林嘉怡', priority: 'high', status: 'doing', child: 'actions' },
           { id: 'actions', component: 'Row', children: ['badge', 'done', 'expand'] },
           { id: 'badge', component: 'StatusBadge', label: '进行中', tone: 'info' },
@@ -125,6 +125,10 @@ describe('a2ui_render', () => {
           {
             id: 'trend', component: 'Chart', type: 'line', title: '任务趋势',
             categories: ['周一', '周二'], series: [{ name: '完成', values: [3, 5] }], emptyText: '暂无数据',
+          },
+          {
+            id: 'distribution', component: 'Chart', type: 'pie', title: '任务状态分布',
+            categories: ['待处理', '进行中', '已完成'], series: [{ name: '任务数', values: [3, 5, 12] }], emptyText: '暂无任务',
           },
         ],
       },
@@ -213,6 +217,33 @@ describe('a2ui_render', () => {
     }])
     expect(result.isError).toBe(true)
     expect(resultText(result)).toContain('must match categories')
+  })
+
+  it.each([
+    {
+      name: 'multiple pie series',
+      series: [{ name: '任务数', values: [3, 5] }, { name: '占比', values: [4, 4] }],
+      error: 'exactly one series',
+    },
+    {
+      name: 'an all-zero pie series',
+      series: [{ name: '任务数', values: [0, 0] }],
+      error: 'positive total',
+    },
+  ])('rejects $name', async ({ series, error }) => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'pie', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Chart', type: 'pie', title: '任务状态分布',
+          categories: ['待处理', '已完成'], series, emptyText: '暂无任务',
+        }],
+      },
+    }])
+    expect(result.isError).toBe(true)
+    expect(resultText(result)).toContain(error)
   })
 
   it('routes interactive interface requests to the renderer instead of workspace files', async () => {

@@ -61,7 +61,7 @@ kind: "package-reference"
 | 组件 | 字段 |
 |---|---|
 | `ActionButton` | `label`、`variant`（`default`/`primary`/`danger`/`borderless`）、`action`（`local:set`、`local:toggle` 或 `agent`） |
-| `Chart` | `type: "bar" | "line"`、`title`、最多 12 个分类与四组非负数值系列、`emptyText`；每组系列值数量必须与分类数量一致 |
+| `Chart` | `type: "bar" | "line" | "pie"`、`title`、分类、非负数值系列、`emptyText`；每组系列值数量必须与分类数量一致。环形图要求 2–6 个分类、恰好一个系列且总和为正数 |
 | `DataTable` | `label`、1–12 列及可选本地排序、最多 100 行标量数据、`emptyText`、可选本地筛选文案，以及最多四个 Agent 行级动作；拒绝重复列键、行 id 与动作名 |
 | `Progress` | `label`、可选 `value`/`max`、`tone`；缺少 `value` 时渲染不确定进度 |
 | `StatusBadge` | `label`、`tone`（`neutral`/`info`/`success`/`warning`/`danger`） |
@@ -72,7 +72,7 @@ kind: "package-reference"
 
 `DataTable` 行级动作会发送动作名、所选 `rowId` 与标量行对象。带 `confirm` 的动作先显示本地确认；取消不发送任何内容，确认也只负责派发事件，Client 不会直接修改或删除行。如果同一动作名还配置在 `approvalActions` 中，渲染器外层的审批步骤仍然生效。
 
-`Chart` 准入分组柱状图与折线图。模型提供标签与有限非负数值，渲染器负责 SVG 坐标、系列颜色、主题适配、读屏摘要以及鼠标/键盘数值 Tooltip。Tooltip 状态仅留在本地，不发送 Agent 动作。饼图、触摸专用 Tooltip 行为、边缘避让与图表动作仍留待后续。
+`Chart` 准入分组柱状图、折线图与单系列环形图。模型提供标签与有限非负数值，渲染器负责 SVG 坐标、弧段、百分比、系列颜色、主题适配、读屏摘要以及鼠标/键盘数值 Tooltip。Tooltip 状态仅留在本地，不发送 Agent 动作。触摸专用 Tooltip 行为、边缘避让与图表动作仍留待后续。
 
 <a id="model-experience"></a>
 ## 模型体验

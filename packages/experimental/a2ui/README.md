@@ -61,7 +61,7 @@ Besides the Basic Catalog, the validator admits one business catalog, `https://d
 | Component | Fields |
 |---|---|
 | `ActionButton` | `label`, `variant` (`default`/`primary`/`danger`/`borderless`), `action` (`local:set`, `local:toggle`, or `agent`) |
-| `Chart` | `type: "bar" | "line"`, `title`, up to 12 categories and four non-negative numeric series, `emptyText`; each series must match the category count |
+| `Chart` | `type: "bar" | "line" | "pie"`, `title`, categories, non-negative numeric series, `emptyText`; each series must match the category count. Pie charts require 2–6 categories, exactly one series, and a positive total |
 | `DataTable` | `label`, 1–12 columns with optional local sorting, up to 100 scalar rows, `emptyText`, optional local filter labels, and up to four Agent row actions; duplicate column keys, row ids, and action names are rejected |
 | `Progress` | `label`, optional `value`/`max`, `tone`; missing `value` renders indeterminate progress |
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
@@ -72,7 +72,7 @@ A Surface that names the Basic Catalog still refuses them, so a third-party rend
 
 `DataTable` row actions send their action name with the selected `rowId` and scalar row object. A row action with `confirm` opens a local confirmation first; cancellation sends nothing, and confirmation only dispatches the event—the Client never mutates or deletes a row. If the same action name is also configured in `approvalActions`, the renderer's outer approval step still applies.
 
-`Chart` admits grouped bar charts and line charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, series colours, theme adaptation, the screen-reader summary, and pointer/keyboard value tooltips. Tooltip state remains local and sends no Agent action. Pie charts, touch-specific tooltip behavior, edge avoidance, and chart actions remain deferred.
+`Chart` admits grouped bar charts, line charts, and single-series donut charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, arcs, percentages, series colours, theme adaptation, the screen-reader summary, and pointer/keyboard value tooltips. Tooltip state remains local and sends no Agent action. Touch-specific tooltip behavior, edge avoidance, and chart actions remain deferred.
 
 <a id="model-experience"></a>
 ## Model Experience

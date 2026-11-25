@@ -164,7 +164,7 @@ type BarChartProps = {
   readonly emptyText: string
 }
 
-type ChartProps = BarChartProps & { readonly type: 'bar' | 'line' }
+type ChartProps = BarChartProps & { readonly type: 'bar' | 'line' | 'pie' }
 type ChartTooltip = {
   readonly key: string
   readonly text: string
@@ -175,16 +175,17 @@ type ChartTooltip = {
 const CHART_PLOT = { left: 24, top: 12, width: 552, height: 188 } as const
 
 function ChartFrame({
-  title, series, categories, children, tooltip, tooltipId,
+  title, series, categories, children, tooltip, tooltipId, categoryLegend = false,
 }: BarChartProps & {
   readonly children: ReactNode
   readonly tooltip: ChartTooltip | null
   readonly tooltipId: string
+  readonly categoryLegend?: boolean
 }) {
   return <figure className={css.chart}>
     <figcaption className={css.chartTitle}>{title}</figcaption>
-    <div className={css.chartLegend}>{series.map((item, index) => <span key={item.name}>
-      <i data-series={String(index)} />{item.name}
+    <div className={css.chartLegend}>{(categoryLegend ? categories : series.map(item => item.name)).map((item, index) => <span key={item}>
+      <i data-series={String(index)} />{item}
     </span>)}</div>
     <div className={css.chartPlot}>
       {children}
@@ -301,9 +302,58 @@ export function LineChartView({ title, categories, series, emptyText }: BarChart
   </ChartFrame>
 }
 
+/**
+ * Render one bounded series as a Host-owned donut chart.
+ * @param props - title, category labels, one numeric series, and caller-owned empty text.
+ * @returns a themed SVG with focusable segments and local value tooltips.
+ */
+export function PieChartView({ title, categories, series, emptyText }: BarChartProps) {
+  const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
+  const tooltipId = useId()
+  const [pieSeries] = series
+  if (categories.length === 0 || pieSeries === undefined) return <div className={css.chartEmpty}>{emptyText}</div>
+  const values = pieSeries.values
+  const total = values.reduce((sum, value) => sum + value, 0)
+  const radius = 70
+  const circumference = 2 * Math.PI * radius
+  let consumed = 0
+  return <ChartFrame
+    title={title} categories={categories} series={series} emptyText={emptyText}
+    tooltip={tooltip} tooltipId={tooltipId} categoryLegend
+  >
+    <svg className={css.pieChart} viewBox="0 0 600 236" role="img" aria-label={title}>
+      {values.map((value, index) => {
+        const category = categories[index] ?? ''
+        const fraction = value / total
+        const length = fraction * circumference
+        const midpoint = (consumed + fraction / 2) * Math.PI * 2 - Math.PI / 2
+        const tooltipRadius = radius + 35
+        const target = {
+          key: category,
+          text: `${category} · ${pieSeries.name} ${String(value)} · ${String(Math.round(fraction * 100))}%`,
+          x: 300 + Math.cos(midpoint) * tooltipRadius,
+          y: 118 + Math.sin(midpoint) * tooltipRadius,
+        }
+        const offset = -consumed * circumference
+        consumed += fraction
+        return <circle
+          key={category} className={css.pieSegment} data-series={String(index)} data-testid="pie-chart-segment"
+          cx={300} cy={118} r={radius} fill="none"
+          strokeDasharray={`${String(length)} ${String(circumference - length)}`}
+          strokeDashoffset={offset} transform="rotate(-90 300 118)"
+          tabIndex={0} aria-label={target.text} aria-describedby={tooltip?.key === target.key ? tooltipId : undefined}
+          onMouseEnter={() => { setTooltip(target) }} onMouseLeave={() => { setTooltip(null) }}
+          onFocus={() => { setTooltip(target) }} onBlur={() => { setTooltip(null) }}
+        />
+      })}
+      <text className={css.pieTotal} x={300} y={124} textAnchor="middle">{total}</text>
+    </svg>
+  </ChartFrame>
+}
+
 const chartString = z.string().min(1)
 const barChartProps = z.strictObject({
-  type: z.enum(['bar', 'line']),
+  type: z.enum(['bar', 'line', 'pie']),
   title: chartString,
   categories: z.array(chartString).max(12),
   series: z.array(z.strictObject({
@@ -325,11 +375,24 @@ const barChartProps = z.strictObject({
     if (names.has(item.name)) ctx.addIssue({ code: 'custom', message: 'duplicate series name', path: ['series', index, 'name'] })
     names.add(item.name)
   }
+  if (value.type === 'pie' && value.categories.length > 0) {
+    const [pieSeries] = value.series
+    if (value.categories.length < 2 || value.categories.length > 6) {
+      ctx.addIssue({ code: 'custom', message: 'pie Chart requires 2 to 6 categories', path: ['categories'] })
+    }
+    if (value.series.length !== 1) {
+      ctx.addIssue({ code: 'custom', message: 'pie Chart requires exactly one series', path: ['series'] })
+    } else if (pieSeries !== undefined && pieSeries.values.reduce((total, item) => total + item, 0) <= 0) {
+      ctx.addIssue({ code: 'custom', message: 'pie Chart requires a positive total', path: ['series', 0, 'values'] })
+    }
+  }
 })
 
 const chart = createComponentImplementation({ name: 'Chart', schema: barChartProps }, ({ props }) => {
   const value = props as ChartProps
-  return value.type === 'bar' ? <BarChartView {...value} /> : <LineChartView {...value} />
+  if (value.type === 'bar') return <BarChartView {...value} />
+  if (value.type === 'line') return <LineChartView {...value} />
+  return <PieChartView {...value} />
 })
 
 type TableCell = string | number | boolean | null
