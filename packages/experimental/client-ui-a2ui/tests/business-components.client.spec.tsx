@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageProcessor, STRICT_VALIDATION, type ProcessableMessagePayload } from '@a2ui/web_core/v1_0'
 import { basicCatalog } from '@a2ui/web_core/catalogs/basic/v1'
 import { catalogs, TASK_CATALOG_ID, taskCatalog } from '../src/client/catalogs.ts'
-import { ActionButtonView } from '../src/client/business-components.tsx'
+import { ActionButtonView, ProgressView } from '../src/client/business-components.tsx'
 
 afterEach(cleanup)
 
@@ -32,6 +32,7 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     expect(taskCatalog.components.has('StatusBadge')).toBe(true)
     expect(taskCatalog.components.has('Statistic')).toBe(true)
     expect(taskCatalog.components.has('ActionButton')).toBe(true)
+    expect(taskCatalog.components.has('Progress')).toBe(true)
     expect(basicCatalog.components.has('Card')).toBe(true)
     expect(basicCatalog.components.has('TaskCard')).toBe(false)
     expect(catalogs).toHaveLength(2)
@@ -44,6 +45,24 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     }).not.toThrow()
     expect(processor.getSurface('board')).toBeDefined()
     processor.dispose()
+  })
+
+  it('renders bounded determinate and accessible indeterminate progress', () => {
+    const done = render(<ProgressView label="导入任务" value={125} max={100} tone="success" />)
+    const bar = done.getByRole('progressbar', { name: '导入任务' })
+    expect(bar.getAttribute('aria-valuemin')).toBe('0')
+    expect(bar.getAttribute('aria-valuemax')).toBe('100')
+    expect(bar.getAttribute('aria-valuenow')).toBe('100')
+    expect(bar.getAttribute('aria-valuetext')).toBe('100%')
+    expect(done.getByText('100%')).toBeTruthy()
+    done.unmount()
+
+    const pending = render(<ProgressView label="分析中" tone="info" />)
+    const indeterminate = pending.getByRole('progressbar', { name: '分析中' })
+    expect(indeterminate.hasAttribute('aria-valuenow')).toBe(false)
+    expect(indeterminate.hasAttribute('aria-valuetext')).toBe(false)
+    expect(pending.queryByText('进行中')).toBeNull()
+    expect(indeterminate.getAttribute('data-indeterminate')).toBe('true')
   })
 
   it('updates the data model locally or dispatches one Agent event', () => {

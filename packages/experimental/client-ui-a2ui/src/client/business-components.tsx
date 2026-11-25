@@ -110,6 +110,53 @@ const actionButton = createComponentImplementation({
   }),
 }, ({ props, context }) => <ActionButtonView props={props as ActionButtonProps} context={context} />)
 
+type ProgressProps = {
+  readonly label: string
+  readonly value?: number
+  readonly max?: number
+  readonly tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+}
+
+/**
+ * Render bounded determinate progress or an accessible indeterminate track.
+ * @param props - label, optional value/max pair, and semantic tone.
+ * @returns a progress bar with visible status text.
+ */
+export function ProgressView({ label, value, max = 100, tone: progressTone = 'neutral' }: ProgressProps) {
+  const safeMax = Number.isFinite(max) && max > 0 ? max : 100
+  const percent = value === undefined
+    ? undefined
+    : Math.round(Math.min(1, Math.max(0, value / safeMax)) * 100)
+  return <div className={css.progress} data-tone={progressTone}>
+    <div className={css.progressHeader}>
+      <span className={css.progressLabel}>{label}</span>
+      {percent === undefined ? null : <span className={css.progressValue}>{String(percent)}%</span>}
+    </div>
+    <div
+      className={css.progressTrack}
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={percent === undefined ? undefined : 0}
+      aria-valuemax={percent === undefined ? undefined : 100}
+      aria-valuenow={percent}
+      aria-valuetext={percent === undefined ? undefined : `${String(percent)}%`}
+      data-indeterminate={percent === undefined ? 'true' : undefined}
+    >
+      <span className={css.progressFill} style={percent === undefined ? undefined : { width: `${String(percent)}%` }} />
+    </div>
+  </div>
+}
+
+const progress = createComponentImplementation({
+  name: 'Progress',
+  schema: z.strictObject({
+    label: z.string(),
+    value: z.number().optional(),
+    max: z.number().optional(),
+    tone: tone.optional(),
+  }),
+}, ({ props }) => <ProgressView {...props as ProgressProps} />)
+
 const badge = createComponentImplementation({
   name: 'StatusBadge',
   schema: z.strictObject({ label: z.string(), tone: tone.optional() }),
@@ -162,7 +209,7 @@ const statistic = createComponentImplementation({
 </div>)
 
 /** Implementations keyed by the name the model sends. */
-export const taskComponents = [actionButton, badge, taskCard, statistic] as const
+export const taskComponents = [actionButton, progress, badge, taskCard, statistic] as const
 
 /** Children a Surface may place inside a business component. */
 export type BusinessComponentChild = ReactNode
