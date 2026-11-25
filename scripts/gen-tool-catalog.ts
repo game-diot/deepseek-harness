@@ -32,6 +32,7 @@ import { PwshLocalExecutor } from '@deepseek-ai/dsh-pwsh-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
+import * as ToolSessionControl from '@deepseek-ai/dsh-tool-session-control'
 import * as ToolWorktree from '@deepseek-ai/dsh-experimental-tool-worktree'
 import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentLimits, ImageAttachmentRef, SaveImageAttachment, StoredImageAttachment } from '@deepseek-ai/dsh-attachment'
@@ -45,9 +46,7 @@ import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 import * as ToolSubagentControl from '@deepseek-ai/dsh-tool-subagent-control'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
-import ActionCards from '@deepseek-ai/dsh-action-cards'
 import * as A2ui from '@deepseek-ai/dsh-a2ui'
-import RemoteAccess from '@deepseek-ai/dsh-api-remote-access'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
@@ -227,6 +226,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     async mount(ctx) {
       await ctx.plugin(A2ui, {})
     },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-session-control',
+    dir: 'tool-session-control',
+    source: 'packages/session/tool-session-control/src/index.ts',
+    requires: ['ctx.tools', 'ctx.sessionController', 'ctx.workspaceRegistry', 'a calling Agent'],
+    writes: ['tool/call', 'agent/inbox/spliced in the recipient', 'tool/result'],
+    async mount(ctx) {
+      // Schema harvest never executes a tool, so both Host services are empty stubs.
+      ctx.provide('sessionController', {} as Context['sessionController'])
+      ctx.provide('workspaceRegistry', {} as Context['workspaceRegistry'])
+      await ctx.plugin(ToolSessionControl)
+    },
+    note: 'The dsh-web-app bundle mounts this package on a disabled row; the Web Session controller activates each target.',
   },
   {
     pkg: '@deepseek-ai/dsh-plugin-manager',

@@ -36,18 +36,9 @@ Promotion requires a named product role, documented public behavior and limitati
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`action-cards`](action-cards/README.md) | Optional action cards below answers: `action-card` blocks, card state, user actions and status notices | `ctx.actionCards` |
-| [`client-ui-action-cards`](client-ui-action-cards/README.md) | Card frame below completed answers, kind bodies and the layer that hides card blocks | — |
 | [`ag-ui-bridge`](ag-ui-bridge/README.md) | Optional authenticated AG-UI SSE adapter beside the native DSH protocol | — |
 | [`a2ui`](a2ui/README.md) | Validated, bounded A2UI v1 Basic Catalog messages persisted for a Client renderer | — |
 | [`client-ui-a2ui`](client-ui-a2ui/README.md) | Browser Tool View for A2UI result admission and visible fallback | — |
-| [`action-cards`](action-cards/README.md) | Optional action cards below answers: the proposal tool, card state, user actions and status notices | `ctx.actionCards` |
-| [`client-ui-action-cards`](client-ui-action-cards/README.md) | Card frame below completed answers, kind bodies and the proposal process row | — |
-| [`creation-recommendations`](creation-recommendations/README.md) | Explicit-need creation of persistent removable interface plugins | — |
-| [`client-ui-creation-recommendations`](client-ui-creation-recommendations/README.md) | Personalized page card body with location selection and undo | — |
-| [`plugin-recommendations`](plugin-recommendations/README.md) | Explicit-need official plugin recommendations in conversations | `ctx.pluginRecommendations` |
-| [`client-ui-plugin-recommendations`](client-ui-plugin-recommendations/README.md) | Official plugin card body with catalog text and enabling | — |
-| [`personalized-recommendations`](personalized-recommendations/README.md) | Default-disabled bundle of personalized pages, plugin recommendations and their action cards | — |
 | [`tool-session-query`](tool-session-query/README.md) | Workspace-authorized model session search, trace, and event reads | — |
 | [`session-search`](session-search/README.md) | Optional experimental global session search tools | — |
 | [`deepseek-chat-import`](deepseek-chat-import/README.md) | Optional upload of DeepSeek website chat exports as Sessions in a chosen Workspace | `ctx.deepseekChatImport` |

@@ -14,12 +14,8 @@ import type { ToolFileInjected } from '../tool/file-menu.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
-    /**
-     * Key by wire name, including custom tools; a typo never renders. Unclaimed keys use the generic row.
-     * Use `key: '<tool name>'` to replace the view; phase data has `name` and lazy, possibly partial `args`.
-     * Key by wire name, including custom tools; `key: '<tool name>'` typos never render.
-     * Occupied keys replace the view, unclaimed keys use the generic row, and preparing owner `args` may be incomplete.
-     */
+    /** Key by wire name; occupied keys replace the view, otherwise the generic row renders.
+     * Custom names work, typos do not render, and preparing `args` may be incomplete. */
     'tool.call.toolview': {
       kind: 'keyed'
       scope: 'session'
@@ -54,8 +50,7 @@ export interface ToolImagesOwnerProps {
 
 /** Standard owner currency supplied to every atomic Tool view. */
 export interface ToolCallCommonProps {
-  /** Stable Hook; each invocation owns its open state and subscribes to enclosing-Turn resets. */
-  useDisclosure: UseDisclosure
+  /** Stable Hook; each invocation owns its state. */ useDisclosure: UseDisclosure
   /** Call identity, stable across all stages. */
   callId: string
   /** Wire Tool name and keyed dispatch value. */
@@ -66,7 +61,7 @@ export interface ToolCallCommonProps {
   home?: string | undefined
   /** Open an argument path at its optional requested line. */
   openFile: (path: string, options?: OpenFileOptions) => void
-  /** Chat-supplied, Gateway-authorized loader for durable images; Tool views do not manage attachment URLs. */
+  /** Authorized image loader. */
   loadImage: MessageImageLoader
   /** Inspect this call in the trajectory view when available. */
   inspect?: (() => void) | undefined
