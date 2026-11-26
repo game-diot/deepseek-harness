@@ -415,6 +415,16 @@ const component = z.discriminatedUnion('component', [
       collapseLabel: z.string().min(1).max(100).optional(),
       time: z.string().min(1).max(100).optional(),
       tone: z.enum(SURFACE_TONE).optional(),
+      action: z.strictObject({
+        label: z.string().min(1).max(100),
+        name: z.string().min(1).max(128),
+        variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+        confirm: z.strictObject({
+          prompt: z.string().min(1).max(200),
+          confirmLabel: z.string().min(1).max(100),
+          cancelLabel: z.string().min(1).max(100),
+        }).optional(),
+      }).optional(),
     }).superRefine((item, itemCtx) => {
       const detailCount = [item.summary, item.details, item.expandLabel, item.collapseLabel].filter(value => value !== undefined).length
       if (detailCount !== 0 && detailCount !== 4) {

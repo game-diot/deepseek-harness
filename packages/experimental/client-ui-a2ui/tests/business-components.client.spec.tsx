@@ -143,6 +143,56 @@ describe('contract: the business catalog renders beside the Basic Catalog', () =
     processor.dispose()
   })
 
+  it('dispatches Timeline item actions without changing local details', () => {
+    const dispatchAction = vi.fn(() => Promise.resolve())
+    const timeline = render(<TimelineView
+      title="执行记录"
+      items={[
+        {
+          id: 'running', title: '正在分析数据', summary: '已完成 3 个数据源', details: '正在处理第四个数据源。',
+          expandLabel: '展开详情', collapseLabel: '收起详情', time: '10:22', tone: 'info',
+          action: { label: '查看日志', name: 'viewLogs', variant: 'default' },
+        },
+        {
+          id: 'failed', title: '外部服务失败', description: '请求超时', time: '10:27', tone: 'danger',
+          action: {
+            label: '重试任务', name: 'retryTask', variant: 'danger',
+            confirm: { prompt: '确认重试该任务？', confirmLabel: '确认重试', cancelLabel: '取消' },
+          },
+        },
+      ]}
+      emptyText="暂无记录"
+      context={{ dispatchAction }}
+    />)
+    fireEvent.click(timeline.getByRole('button', { name: '展开详情' }))
+    fireEvent.click(timeline.getByRole('button', { name: '查看日志' }))
+    expect(dispatchAction).toHaveBeenCalledWith({ event: {
+      name: 'viewLogs',
+      context: {
+        itemId: 'running',
+        item: { title: '正在分析数据', summary: '已完成 3 个数据源', details: '正在处理第四个数据源。', time: '10:22', tone: 'info' },
+      },
+    } })
+    expect(timeline.getByText('正在处理第四个数据源。')).toBeTruthy()
+    dispatchAction.mockClear()
+
+    fireEvent.click(timeline.getByRole('button', { name: '重试任务' }))
+    expect(timeline.getByRole('group', { name: '确认重试该任务？' })).toBeTruthy()
+    expect(dispatchAction).not.toHaveBeenCalled()
+    fireEvent.click(timeline.getByRole('button', { name: '取消' }))
+    expect(dispatchAction).not.toHaveBeenCalled()
+    fireEvent.click(timeline.getByRole('button', { name: '重试任务' }))
+    fireEvent.click(timeline.getByRole('button', { name: '确认重试' }))
+    expect(dispatchAction).toHaveBeenCalledWith({ event: {
+      name: 'retryTask',
+      context: {
+        itemId: 'failed',
+        item: { title: '外部服务失败', description: '请求超时', time: '10:27', tone: 'danger' },
+      },
+    } })
+    expect(timeline.getByText('外部服务失败')).toBeTruthy()
+  })
+
   it('renders semantic rows in column order and one spanning empty state', () => {
     const table = render(<DataTableView
       label="任务列表"

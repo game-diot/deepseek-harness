@@ -284,6 +284,27 @@ describe('a2ui_render', () => {
     expect(resultText(result)).toContain('detail fields must be provided together')
   })
 
+  it('admits a complete Timeline item action contract', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, [{
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'timeline-action', catalogId: 'https://dsh.dev/a2ui/catalogs/task/v1',
+        components: [{
+          id: 'root', component: 'Timeline', title: '执行记录', emptyText: '暂无记录',
+          items: [{
+            id: 'failed', title: '外部服务失败', description: '请求超时',
+            action: {
+              label: '重试任务', name: 'retryTask', variant: 'danger',
+              confirm: { prompt: '确认重试？', confirmLabel: '确认重试', cancelLabel: '取消' },
+            },
+          }],
+        }],
+      },
+    }])
+    expect(result.isError).toBe(false)
+  })
+
   it('rejects a Chart series whose values do not match its categories', async () => {
     const ctx = await setup()
     const result = await call(ctx, [{

@@ -770,8 +770,15 @@ type TimelineProps = {
     readonly collapseLabel?: string
     readonly time?: string
     readonly tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+    readonly action?: {
+      readonly label: string
+      readonly name: string
+      readonly variant?: 'default' | 'primary' | 'danger' | 'borderless'
+      readonly confirm?: { readonly prompt: string; readonly confirmLabel: string; readonly cancelLabel: string }
+    }
   }[]
   readonly emptyText: string
+  readonly context?: DataTableContext
 }
 
 /**
@@ -779,8 +786,9 @@ type TimelineProps = {
  * @param props - accessible title, timeline items, and caller-owned empty text.
  * @returns a semantic region containing an ordered list or its empty state.
  */
-export function TimelineView({ title, items, emptyText }: TimelineProps) {
+export function TimelineView({ title, items, emptyText, context }: TimelineProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const [pendingAction, setPendingAction] = useState<string | null>(null)
   const toggle = (id: string): void => {
     setExpanded((current) => {
       const next = new Set(current)
@@ -788,6 +796,24 @@ export function TimelineView({ title, items, emptyText }: TimelineProps) {
       else next.add(id)
       return next
     })
+  }
+  const dispatchItemAction = (item: TimelineProps['items'][number]): void => {
+    if (item.action === undefined) return
+    const { title: itemTitle, description, summary, details, time, tone: itemTone } = item
+    void context?.dispatchAction({ event: {
+      name: item.action.name,
+      context: {
+        itemId: item.id,
+        item: {
+          title: itemTitle,
+          ...(description === undefined ? {} : { description }),
+          ...(summary === undefined ? {} : { summary }),
+          ...(details === undefined ? {} : { details }),
+          ...(time === undefined ? {} : { time }),
+          ...(itemTone === undefined ? {} : { tone: itemTone }),
+        },
+      },
+    } })
   }
   return <section className={css.timeline} aria-label={title}>
     <h3 className={css.timelineTitle}>{title}</h3>
@@ -809,6 +835,23 @@ export function TimelineView({ title, items, emptyText }: TimelineProps) {
               type="button" className={css.timelineToggle} aria-expanded={isExpanded}
               onClick={() => { toggle(item.id) }}
             >{isExpanded ? item.collapseLabel : item.expandLabel}</button>}
+            {item.action === undefined ? null : <button
+              type="button" className={`${css.actionButton} ${ACTION_CLASS[item.action.variant ?? 'default'] ?? ''}`}
+              onClick={() => {
+                if (item.action?.confirm === undefined) dispatchItemAction(item)
+                else setPendingAction(item.id)
+              }}
+            >{item.action.label}</button>}
+            {item.action?.confirm === undefined || pendingAction !== item.id ? null : <div
+              className={css.timelineConfirm} role="group" aria-label={item.action.confirm.prompt}
+            >
+              <span>{item.action.confirm.prompt}</span>
+              <button type="button" onClick={() => { setPendingAction(null) }}>{item.action.confirm.cancelLabel}</button>
+              <button type="button" onClick={() => {
+                setPendingAction(null)
+                dispatchItemAction(item)
+              }}>{item.action.confirm.confirmLabel}</button>
+            </div>}
           </div>
         </li>
       })}
@@ -826,6 +869,16 @@ const timelineItem = z.strictObject({
   collapseLabel: z.string().min(1).max(100).optional(),
   time: z.string().min(1).max(100).optional(),
   tone: tone.optional(),
+  action: z.strictObject({
+    label: z.string().min(1).max(100),
+    name: z.string().min(1).max(128),
+    variant: z.enum(['default', 'primary', 'danger', 'borderless']).optional(),
+    confirm: z.strictObject({
+      prompt: z.string().min(1).max(200),
+      confirmLabel: z.string().min(1).max(100),
+      cancelLabel: z.string().min(1).max(100),
+    }).optional(),
+  }).optional(),
 }).superRefine((item, itemCtx) => {
   const detailCount = [item.summary, item.details, item.expandLabel, item.collapseLabel].filter(value => value !== undefined).length
   if (detailCount !== 0 && detailCount !== 4) {
@@ -843,8 +896,8 @@ const timelineProps = z.strictObject({
     ids.add(item.id)
   }
 })
-const timeline = createComponentImplementation({ name: 'Timeline', schema: timelineProps }, ({ props }) => (
-  <TimelineView {...props as TimelineProps} />
+const timeline = createComponentImplementation({ name: 'Timeline', schema: timelineProps }, ({ props, context }) => (
+  <TimelineView {...props as TimelineProps} context={context} />
 ))
 
 const PRIORITY_LABEL: Readonly<Record<string, string>> = { high: 'P0', medium: 'P1', low: 'P2' }

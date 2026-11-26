@@ -67,7 +67,7 @@ Besides the Basic Catalog, the validator admits one business catalog, `https://d
 | `StatusBadge` | `label`, `tone` (`neutral`/`info`/`success`/`warning`/`danger`) |
 | `Statistic` | `label`, `value`, `trend` (`direction`, `text`), `tone` |
 | `TaskCard` | `title`, `owner`, `priority` (`high`/`medium`/`low`), `status` (`todo`/`doing`/`done`), `child` |
-| `Timeline` | `title`, up to 50 uniquely identified items with optional `description`, `time`, `tone`, or complete `summary`/`details`/expand-collapse labels, `emptyText` |
+| `Timeline` | `title`, up to 50 uniquely identified items with optional `description`, `time`, `tone`, complete `summary`/`details`/expand-collapse labels, or one Agent `action`, `emptyText` |
 
 A Surface that names the Basic Catalog still refuses them, so a third-party renderer without this catalog keeps drawing every Surface it is sent. `TaskCard.child` names one component placed in the card's action area, so a `Row` of `Button`s sits inside the card. `ActionButton` applies `local:set` and `local:toggle` through the owning Surface data model without contacting the Agent; its `agent` variant dispatches one ordinary A2UI event.
 
@@ -77,7 +77,7 @@ A Surface that names the Basic Catalog still refuses them, so a third-party rend
 
 `Chart` admits grouped bar charts, line charts, and single-series donut charts. The model supplies labels and finite non-negative values; the renderer owns SVG coordinates, arcs, percentages, series colours, theme adaptation, the screen-reader summary, and pointer/keyboard value tooltips. Tooltip state remains local and sends no Agent action. An optional interaction makes bars, points, or segments activate one Agent action by click, Enter, or Space with chart type, category, series, indexes, and value; pie targets also include the percentage. The Client never mutates the chart and waits for a successor Surface. Touch-specific tooltip behavior, edge avoidance, per-target action names, zooming, and multi-selection remain deferred.
 
-`Timeline` renders a semantic ordered list with design-owned markers and connectors. Short `description` text is always visible. An item with `summary`, `details`, `expandLabel`, and `collapseLabel` starts collapsed and toggles details in local React state keyed by item id; collapsed details leave the accessibility tree. Expansion sends no Agent action or Turn. Timeline item actions remain deferred.
+`Timeline` renders a semantic ordered list with design-owned markers and connectors. Short `description` text is always visible. An item with `summary`, `details`, `expandLabel`, and `collapseLabel` starts collapsed and toggles details in local React state keyed by item id; collapsed details leave the accessibility tree. Expansion sends no Agent action or Turn. An optional item action dispatches its name with `itemId` and a text-only item snapshot; confirmation opens and cancels locally, only acceptance dispatches. The Client neither changes the item nor resets local expansion and waits for a successor Surface.
 
 <a id="model-experience"></a>
 ## Model Experience
